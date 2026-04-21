@@ -1,0 +1,7 @@
+api/_src/
+api/health.js
+api/test.js
+api/src/
+node_modules/
+.git/
+.env*

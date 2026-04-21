@@ -1,0 +1,54 @@
+# ==========================================
+# ⚙️ OS & EDITOR (Visual Studio Code, Mac, Windows)
+# ==========================================
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ==========================================
+# 🐍 BACKEND (Python / FastAPI)
+# ==========================================
+# Rahasia & Environment (SANGAT PENTING!)
+.env
+*.env
+backend/venv/
+backend/env/
+
+# Sampah Kompilasi Python
+__pycache__/
+*.pyc
+*.db
+
+# Folder Dinamis TMS JAPFA (Biar file upload excel/json ngga ikut ke-push)
+backend/uploads/
+backend/route_geometries/
+
+# ==========================================
+# ⚛️ FRONTEND (Node.js / React / Vite)
+# ==========================================
+# Dependencies (Folder Paling Berat di Bumi)
+frontend/node_modules/
+node_modules/
+
+# Hasil Build & Deploy
+frontend/dist/
+frontend/dist-ssr/
+.vercel/
+
+# Sampah Log NPM / Yarn
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# File Environment Lokal Frontend
+*.local
