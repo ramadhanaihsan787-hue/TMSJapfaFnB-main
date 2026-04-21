@@ -1,54 +1,29 @@
 # ==========================================
-# ⚙️ OS & EDITOR (Visual Studio Code, Mac, Windows)
+# 🛑 MODE KEBAL: APAPUN NAMA FOLDERNYA, SAMPAH INI DITOLAK!
 # ==========================================
-.DS_Store
-.vscode/*
-!.vscode/extensions.json
-.idea
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
 
-# ==========================================
-# 🐍 BACKEND (Python / FastAPI)
-# ==========================================
-# Rahasia & Environment (SANGAT PENTING!)
-.env
-*.env
-backend/venv/
-backend/env/
+# 1. Sampah Frontend (Dosa Paling Berat)
+node_modules/
+dist/
+dist-ssr/
+.vercel/
+*.local
+npm-debug.log*
 
-# Sampah Kompilasi Python
+# 2. Sampah Backend & Rahasia
+venv/
+env/
 __pycache__/
 *.pyc
 *.db
+.env
+*.env
+uploads/
+route_geometries/
 
-# Folder Dinamis TMS JAPFA (Biar file upload excel/json ngga ikut ke-push)
-backend/uploads/
-backend/route_geometries/
-
-# ==========================================
-# ⚛️ FRONTEND (Node.js / React / Vite)
-# ==========================================
-# Dependencies (Folder Paling Berat di Bumi)
-frontend/node_modules/
-node_modules/
-
-# Hasil Build & Deploy
-frontend/dist/
-frontend/dist-ssr/
-.vercel/
-
-# Sampah Log NPM / Yarn
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-# File Environment Lokal Frontend
-*.local
+# 3. Sampah Windows / Mac / VSCode
+.DS_Store
+.vscode/
+!.vscode/extensions.json
+.idea
+*.suo
