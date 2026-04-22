@@ -10,7 +10,7 @@ import requests
 import time
 
 import models
-import vrp_solver
+from services import vrp_solver
 from database import SessionLocal
 from dependencies import get_current_user, require_role
 

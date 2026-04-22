@@ -20,7 +20,9 @@ def solve_vrp(distance_matrix, time_matrix, demands,
     manager = pywrapcp.RoutingIndexManager(len(data['distance_matrix']), data['num_vehicles'], data['depot'])
     routing = pywrapcp.RoutingModel(manager)
 
-    # 1. OBJEKTIF UTAMA: JARAK (Ini harus diutamakan!)
+    # ==========================================
+    # 1. DIMENSI JARAK (DISTANCE)
+    # ==========================================
     def distance_callback(from_index, to_index):
         from_node = manager.IndexToNode(from_index)
         to_node = manager.IndexToNode(to_index)
@@ -29,7 +31,6 @@ def solve_vrp(distance_matrix, time_matrix, demands,
     transit_callback_index = routing.RegisterTransitCallback(distance_callback)
     routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 
-    # Dimensi Jarak (Buat Hukuman Balancing)
     dimension_name = 'Distance'
     routing.AddDimension(
         transit_callback_index,
@@ -39,10 +40,12 @@ def solve_vrp(distance_matrix, time_matrix, demands,
         dimension_name)
     distance_dimension = routing.GetDimensionOrDie(dimension_name)
     
-    # 🌟 OBAT NYA DISINI: Denda dikurangin drastis dari 100 ke 10. Biar AI tetep nyari jarak terdekat, tapi ngga 1 truk doang yang borongan.
+    # Denda ini (10) cukup buat memastikan rute ngga ada yang terlalu jauh
     distance_dimension.SetGlobalSpanCostCoefficient(10) 
 
-    # 2. KAPASITAS MUATAN
+    # ==========================================
+    # 2. DIMENSI KAPASITAS (CAPACITY)
+    # ==========================================
     def demand_callback(from_index):
         from_node = manager.IndexToNode(from_index)
         return data['demands'][from_node]
@@ -55,30 +58,36 @@ def solve_vrp(distance_matrix, time_matrix, demands,
         True, 
         'Capacity'
     )
-    # Hukuman Muatan juga dikecilin
-    capacity_dimension = routing.GetDimensionOrDie('Capacity')
-    capacity_dimension.SetGlobalSpanCostCoefficient(5) 
+    
+    # 🌟 OPTIMASI: Dihapus. Jangan maksain AI buat ngebagi muatan SAMA RATA. 
+    # Biarin aja AI ngisi truk 1 sampe penuh, baru buka truk 2. Lebih efisien.
+    # capacity_dimension = routing.GetDimensionOrDie('Capacity')
+    # capacity_dimension.SetGlobalSpanCostCoefficient(5) <-- DIHAPUS
 
+    # ==========================================
+    # 3. DIMENSI WAKTU (TIME WINDOWS)
+    # ==========================================
     def time_callback(from_index, to_index):
-    from_node = manager.IndexToNode(from_index)
-    to_node = manager.IndexToNode(to_index)
+        # 🌟 FIXED: Spasi (Indentation) udah dibenerin! Ngga bakal error lagi.
+        from_node = manager.IndexToNode(from_index)
+        to_node = manager.IndexToNode(to_index)
 
-    travel_time = data['time_matrix'][from_node][to_node]
+        travel_time = data['time_matrix'][from_node][to_node]
 
-    if to_node == 0:
-        return int(travel_time)
+        if to_node == 0:
+            return int(travel_time)
 
-    qty = data['demands'][to_node]
+        qty = data['demands'][to_node]
 
-    # 🌟 DINAMIS dari System Settings
-    tambahan_waktu_qty = (qty * var_drop_time) / 10.0
+        # 🌟 DINAMIS dari System Settings
+        tambahan_waktu_qty = (qty * var_drop_time) / 10.0
 
-    if is_mall_list[to_node]:
-        service_time = 60 + tambahan_waktu_qty  # Mall tetap 60 base
-    else:
-        service_time = base_drop_time + tambahan_waktu_qty
+        if is_mall_list[to_node]:
+            service_time = 60 + tambahan_waktu_qty  # Mall tetap 60 base
+        else:
+            service_time = base_drop_time + tambahan_waktu_qty
 
-    return int(travel_time + service_time)
+        return int(travel_time + service_time)
 
     time_callback_index = routing.RegisterTransitCallback(time_callback)
     
@@ -91,27 +100,33 @@ def solve_vrp(distance_matrix, time_matrix, demands,
     )
     time_dimension = routing.GetDimensionOrDie('Time')
 
+    # Setting Time Windows buat toko-toko
     for location_idx, time_window in enumerate(data['time_windows']):
         if location_idx == data['depot']: continue
         index = manager.NodeToIndex(location_idx)
         time_dimension.CumulVar(index).SetRange(time_window[0], time_window[1])
 
+    # Setting Time Windows buat truk (Jam kerja depot)
     for vehicle_id in range(data['num_vehicles']):
         index = routing.Start(vehicle_id)
         time_dimension.CumulVar(index).SetRange(data['time_windows'][0][0], data['time_windows'][0][1])
         index = routing.End(vehicle_id)
         time_dimension.CumulVar(index).SetRange(data['time_windows'][0][0], data['time_windows'][0][1])
 
+    # Insting AI biar truk beres secepet mungkin
     for i in range(data['num_vehicles']):
         routing.AddVariableMinimizedByFinalizer(time_dimension.CumulVar(routing.Start(i)))
         routing.AddVariableMinimizedByFinalizer(time_dimension.CumulVar(routing.End(i)))
 
-    # 🌟 NEW: DENDA BIAYA TRUK (Vehicle Fixed Cost)
-    # Kalau AI memutuskan truk ini KELUAR dari gudang (bukan jarak 0), dia kena denda gede!
-    # Jadi AI males ngeluarin truk banyak-banyak kalau ngga kepaksa (menghindari 5 truk keluar buat 21 toko).
+    # ==========================================
+    # 4. STRATEGI KEPUTUSAN & PENALTY
+    # ==========================================
+    # 🌟 OPTIMASI: Diturunin dari 5000 ke 1000. 
+    # Biar AI mikir: "Oke, keluarin truk baru emang mahal, tapi kalo dipaksa 1 truk malah telat/kena Time Window, mending keluarin truk baru aja."
     for i in range(data['num_vehicles']):
-        routing.SetFixedCostOfVehicle(5000, i) # Denda 5000 unit biaya kalau truk dipake
+        routing.SetFixedCostOfVehicle(1000, i) 
 
+    # Denda Drop (Toko ngga kebagian)
     penalty = 100000 
     for node in range(1, len(data['distance_matrix'])):
         routing.AddDisjunction([manager.NodeToIndex(node)], penalty)
@@ -135,9 +150,11 @@ def solve_vrp(distance_matrix, time_matrix, demands,
                 index = solution.Value(routing.NextVar(index))
             route.append(manager.IndexToNode(index))
             results['routes'].append(route)
+            
         for node in range(1, len(data['distance_matrix'])):
             if solution.Value(routing.NextVar(manager.NodeToIndex(node))) == manager.NodeToIndex(node):
                 results['dropped_nodes'].append(node)
+                
         return results
     else:
         print("OR-Tools: GAGAL MENEMUKAN SOLUSI!")

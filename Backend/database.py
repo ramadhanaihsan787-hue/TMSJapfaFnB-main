@@ -1,20 +1,16 @@
-# database.py
+"""
+Database module - SQLAlchemy configuration and session management
+"""
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from dotenv import load_dotenv
-import os
+from core.config import DATABASE_URL
 
-# 🌟 Load .env file
-load_dotenv()
+# Create database engine
+engine = create_engine(DATABASE_URL)
 
-# 🌟 Baca dari environment variable, bukan hardcode
-SQLALCHEMY_DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:captainzhyper@localhost:5432/tms_japfa"  # Fallback kalau .env tidak ada
-)
-
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+# Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# Create base class for models
 Base = declarative_base()
