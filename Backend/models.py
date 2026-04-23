@@ -74,6 +74,12 @@ class FleetVehicle(Base):
     route_plans = relationship("TMSRoutePlan", back_populates="vehicle")
     fuel_logs = relationship("FuelLog", back_populates="vehicle")
 
+    default_driver_id = Column(Integer, ForeignKey("hr_drivers.driver_id"), nullable=True)
+    default_driver = relationship("HRDriver", foreign_keys=[default_driver_id])
+
+    co_driver_id = Column(Integer, ForeignKey("hr_drivers.driver_id"), nullable=True)
+    co_driver = relationship("HRDriver", foreign_keys=[co_driver_id])
+
 # ==========================================
 # 3. MASTER CUSTOMERS (KONSOLIDASI!)
 # ==========================================
@@ -121,9 +127,6 @@ class DeliveryOrder(Base):
     
     store_id = Column(Integer, ForeignKey("master_customers.store_id"), nullable=True)
     customer = relationship("MasterCustomer", back_populates="orders")
-
-    priority_first = Column(Boolean, default=False)
-    priority_first=priority_first
 
 # ==========================================
 # 5. HASIL ROUTING OR-TOOLS

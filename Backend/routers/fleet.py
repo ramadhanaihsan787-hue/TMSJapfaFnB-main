@@ -90,6 +90,12 @@ def get_all_fleet(
                     "station": fh.station_name
                 })
 
+        # 🌟 TAMENG PENGAMAN: Jaga-jaga kalau latest_fuel kosong (None)
+        fuel_efficiency = 0.0
+        if latest_fuel:
+            jarak_tempuh = (latest_fuel.km_akhir or 0) - (latest_fuel.km_awal or 0)
+            fuel_efficiency = calculate_efficiency(jarak_tempuh, latest_fuel.liters or 0)
+
         result.append({
             "id": str(v.vehicle_id),
             "plateNumber": v.license_plate,
@@ -108,10 +114,7 @@ def get_all_fleet(
             },
             "lastFuelDate": str(latest_fuel.date_logged) if latest_fuel else "-",
             "lastFuelCost": f"Rp{latest_fuel.cost_rp:,.0f}" if latest_fuel else "-",
-            "fuelEfficiency": calculate_efficiency(
-                (latest_fuel.km_akhir or 0) - (latest_fuel.km_awal or 0),
-                latest_fuel.liters if latest_fuel else 0
-            ),
+            "fuelEfficiency": fuel_efficiency, # 🌟 Pake variabel yang udah aman
             "history": fuel_history
         })
 

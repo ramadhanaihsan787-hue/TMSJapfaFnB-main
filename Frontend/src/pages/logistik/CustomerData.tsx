@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Header from "../../components/Header";
+import { useApi } from "../../hooks/useApi"; // 🌟 MANGGIL SENJATA RAHASIA
 
 type ViewMode = 'list' | 'add' | 'edit';
 
 // =======================================================================
-// KOMPONEN ACTION MENU (Diambil dari kodingan temen lu, dimodif dikit)
+// KOMPONEN ACTION MENU
 // =======================================================================
 const ActionMenu = ({ 
     customerId, 
@@ -45,16 +46,15 @@ const ActionMenu = ({
     );
 };
 
-
 export default function CustomerDirectory() {
-    // STATE DARI KODINGAN LU (Ditambah state ActionMenu)
     const [viewMode, setViewMode] = useState<ViewMode>('list');
     const [showNotification, setShowNotification] = useState(false);
     const [notificationMessage, setNotificationMessage] = useState("");
     const [openActionId, setOpenActionId] = useState<string | null>(null);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-    // State form untuk dipake di Add dan Edit
+    const [customers, setCustomers] = useState<any[]>([]);
+
     const [formData, setFormData] = useState({
         code: "",
         name: "",
@@ -67,9 +67,64 @@ export default function CustomerDirectory() {
         lon: ""
     });
 
-    // --------------------------------------------------------
-    // FUNGSI NAVIGASI / GANTI MODE (DARI KODINGAN LU)
-    // --------------------------------------------------------
+    const { execute: fetchCustomers, loading: isCustomersLoading } = useApi<any>('/api/customers'); 
+    const { execute: saveCustomer, loading: isSaving } = useApi<any>('/api/customers', { method: viewMode === 'add' ? 'POST' : 'PUT' });
+
+    // =======================================================================
+    // 🌟 JURUS BYPASS: TEMBAK API LANGSUNG TANPA PERANTARA!
+    // =======================================================================
+    const loadCustomers = async () => {
+        try {
+            console.log("🚀 ALARM 1: FUNGSI LOAD CUSTOMERS MULAI JALAN!");
+            
+            // Kita bypass useApi bentar, ambil KTP (token) manual
+            const token = localStorage.getItem('token');
+            
+            // Tembak langsung ke Backend!
+            const response = await fetch('http://localhost:8000/api/customers', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            const resData = await response.json();
+            
+            // 🚨 PASANG CCTV:
+            console.log("🕵️ CCTV API CUSTOMER:", resData);
+
+            const actualData = resData?.data?.data || resData?.data || resData;
+
+            if (actualData && Array.isArray(actualData)) {
+                console.log(`✅ BERHASIL DAPET ${actualData.length} DATA CUSTOMER!`);
+                
+                const mappedCustomers = actualData.map((cust: any) => ({
+                    ...cust,
+                    code: cust.kodeCustomer || cust.kode_customer || cust.code || "-",
+                    name: cust.storeName || cust.store_name || cust.name || "-",
+                    admin: cust.adminName || cust.admin_name || cust.admin || "-",
+                    lat: cust.latitude || cust.lat || 0,
+                    lon: cust.longitude || cust.lon || 0,
+                    address: cust.address || "-",
+                    district: cust.district || "-",
+                    city: cust.city || "-",
+                    status: cust.status || "Active"
+                }));
+                
+                setCustomers(mappedCustomers);
+            } else {
+                console.error("❌ Data API Gagal Jadi Array!", actualData);
+            }
+        } catch (error) {
+            console.error("❌ API ERROR / 404 NOT FOUND!", error);
+        }
+    };
+
+    useEffect(() => {
+        loadCustomers();
+    }, []);
+
     const goToList = () => {
         setViewMode('list');
         setFormData({ code: "", name: "", status: "Active", admin: "", address: "", district: "", city: "", lat: "", lon: "" });
@@ -82,41 +137,60 @@ export default function CustomerDirectory() {
 
     const goToEdit = (custData: any) => {
         setFormData({
-            code: custData.code || "C1092-JKT",
-            name: custData.name || "TOKO MAJU JAYA",
+            code: custData.code || "",
+            name: custData.name || "",
             status: custData.status || "Active",
-            admin: custData.admin || "Budi Santoso",
-            address: custData.address || "Jl. Panjang No. 45, Kebon Jeruk",
-            district: custData.district || "Kebon Jeruk / 04 / 02",
-            city: custData.city || "Jakarta Barat",
-            lat: custData.lat || "-6.1944",
-            lon: custData.lon || "106.7621"
+            admin: custData.admin || "",
+            address: custData.address || "",
+            district: custData.district || "",
+            city: custData.city || "",
+            lat: String(custData.lat) || "",
+            lon: String(custData.lon) || ""
         });
         setViewMode('edit');
     };
 
-    // --------------------------------------------------------
-    // FUNGSI SUBMIT FORM 
-    // --------------------------------------------------------
-    const handleFormSubmit = (e: React.FormEvent) => {
+    const handleFormSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
-        if (viewMode === 'add') {
-            setNotificationMessage("Customer Profile Created");
-        } else {
-            setNotificationMessage("Customer Profile Updated");
-        }
 
-        setShowNotification(true);
-        setTimeout(() => {
-            setShowNotification(false);
-            goToList(); 
-        }, 1500);
+        try {
+            const token = localStorage.getItem('token');
+            const endpoint = viewMode === 'add' ? '/api/customers' : `/api/customers/${formData.code}`;
+            const method = viewMode === 'add' ? 'POST' : 'PUT';
+
+            const resRaw = await fetch(`http://localhost:8000${endpoint}`, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(formData)
+            });
+            const res = await resRaw.json();
+
+            if (res && res.status === "success") {
+                if (viewMode === 'add') {
+                    setNotificationMessage("Customer Profile Created");
+                } else {
+                    setNotificationMessage("Customer Profile Updated");
+                }
+
+                setShowNotification(true);
+                await loadCustomers(); 
+
+                setTimeout(() => {
+                    setShowNotification(false);
+                    goToList(); 
+                }, 1500);
+            } else {
+                alert(`Gagal menyimpan data: ${res?.detail || 'Unknown error'}`);
+            }
+        } catch (error) {
+            console.error("Error saving customer:", error);
+            alert("Terjadi kesalahan saat menyambung ke server.");
+        }
     };
 
-    // =======================================================================
-    // RENDER: MODE FORM (ADD & EDIT) - (FULL DARI KODINGAN LU KARENA LEBIH LENGKAP)
-    // =======================================================================
     if (viewMode === 'add' || viewMode === 'edit') {
         const isEdit = viewMode === 'edit';
         return (
@@ -230,7 +304,8 @@ export default function CustomerDirectory() {
                                 <button type="button" onClick={goToList} className="px-8 py-4 text-sm font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors tracking-tight">
                                     Cancel
                                 </button>
-                                <button className="px-10 py-4 bg-[#FF7A00] hover:opacity-90 text-white rounded-xl font-bold tracking-tight shadow-lg shadow-orange-500/20 active:scale-95 transition-all duration-150" type="submit">
+                                <button disabled={isSaving} className="px-10 py-4 bg-[#FF7A00] hover:opacity-90 text-white rounded-xl font-bold tracking-tight shadow-lg shadow-orange-500/20 active:scale-95 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2" type="submit">
+                                    {isSaving && <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>}
                                     {isEdit ? 'Update Customer' : 'Save Customer'}
                                 </button>
                             </div>
@@ -242,18 +317,18 @@ export default function CustomerDirectory() {
     }
 
     // =======================================================================
-    // RENDER: MODE LIST (TABEL DATA CUSTOMER) - DARI KODINGAN TEMEN LU 
+    // RENDER: MODE LIST (TABEL DATA CUSTOMER)
     // =======================================================================
     return (
-        <>
+        <div className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 dark:bg-[#0A0A0A]">
             <Header title="Customer Directory" />
 
             {/* Content Area */}
-            <div className="p-4 md:p-8 max-w-[1600px] w-full mx-auto">
+            <div className="p-4 md:p-8 max-w-[1600px] w-full mx-auto flex-1 overflow-y-auto custom-scrollbar">
                 {/* Page Header */}
                 <div className="mb-8">
-                    <h1 className="text-3xl font-bold">Data Customer Directory</h1>
-                    <p className="text-slate-500 dark:text-slate-400 font-medium text-sm mt-1">Managing 1,284 verified merchant partners across Indonesia</p>
+                    <h1 className="text-3xl font-bold dark:text-white">Data Customer Directory</h1>
+                    <p className="text-slate-500 dark:text-slate-400 font-medium text-sm mt-1">Managing {customers.length > 0 ? customers.length.toLocaleString() : '1,284'} verified merchant partners across Indonesia</p>
                 </div>
 
                 {/* Unified Search and Action Bar */}
@@ -268,7 +343,6 @@ export default function CustomerDirectory() {
                             />
                         </div>
                     </div>
-                    {/* BUTTON ADD NYA DIGANTI PAKE LOGIKA LU */}
                     <button
                         onClick={goToAdd}
                         className="bg-[#FF7A00] text-white px-8 py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 hover:opacity-90 transition-all font-bold tracking-tight">
@@ -315,169 +389,64 @@ export default function CustomerDirectory() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                                {/* Row 1 */}
-                                <tr className="hover:bg-slate-50 dark:hover:bg-[#222] transition-colors group">
-                                    <td className="px-6 py-4 text-xs font-bold font-mono text-[#FF7A00]">C1092-JKT</td>
-                                    <td className="px-6 py-4">
-                                        <span className="text-sm font-bold text-slate-900 dark:text-white block">TOKO MAJU JAYA</span>
-                                        <span className="text-[10px] text-slate-500">Retailer • Tier 1</span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-[10px] font-bold uppercase tracking-wide">Active</span>
-                                    </td>
-                                    <td className="px-6 py-4 text-xs font-medium dark:text-slate-300">Budi Santoso</td>
-                                    <td className="px-6 py-4">
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 max-w-[200px]">Jl. Panjang No. 45, Kebon Jeruk</p>
-                                    </td>
-                                    <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">Kebon Jeruk / 04 / 02</td>
-                                    <td className="px-6 py-4 text-xs font-bold text-slate-900 dark:text-white">Jakarta Barat</td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-col text-[10px] font-mono text-slate-500 dark:text-slate-400 leading-tight">
-                                            <span>-6.1944° S</span>
-                                            <span>106.7621° E</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                        {/* LOGIKA EDIT LU DIMASUKIN KE KOMPONEN TEMEN LU */}
-                                        <ActionMenu 
-                                            customerId="C1092-JKT" 
-                                            openId={openActionId} 
-                                            setOpenId={setOpenActionId} 
-                                            onEdit={() => goToEdit({ code: "C1092-JKT", name: "TOKO MAJU JAYA", lat: "-6.1944", lon: "106.7621", district: "Kebon Jeruk / 04 / 02", city: "Jakarta Barat" })} 
-                                        />
-                                    </td>
-                                </tr>
-                                {/* Row 2 */}
-                                <tr className="bg-slate-50/50 dark:bg-[#1f1f1f] hover:bg-slate-50 dark:hover:bg-[#222] transition-colors group">
-                                    <td className="px-6 py-4 text-xs font-bold font-mono text-[#FF7A00]">C2415-TNG</td>
-                                    <td className="px-6 py-4">
-                                        <span className="text-sm font-bold text-slate-900 dark:text-white block">FARM FRESH INDO</span>
-                                        <span className="text-[10px] text-slate-500">Distributor • Tier 2</span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-[10px] font-bold uppercase tracking-wide">Active</span>
-                                    </td>
-                                    <td className="px-6 py-4 text-xs font-medium dark:text-slate-300">Siti Aminah</td>
-                                    <td className="px-6 py-4">
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 max-w-[200px]">Ruko Modernland Blok AR/12</p>
-                                    </td>
-                                    <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">Cipondoh / 01 / 05</td>
-                                    <td className="px-6 py-4 text-xs font-bold text-slate-900 dark:text-white">Tangerang</td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-col text-[10px] font-mono text-slate-500 dark:text-slate-400 leading-tight">
-                                            <span>-6.1783° S</span>
-                                            <span>106.6319° E</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                        <ActionMenu 
-                                            customerId="C2415-TNG" 
-                                            openId={openActionId} 
-                                            setOpenId={setOpenActionId} 
-                                            onEdit={() => goToEdit({ code: "C2415-TNG", name: "FARM FRESH INDO", lat: "-6.1783", lon: "106.6319", district: "Cipondoh / 01 / 05", city: "Tangerang" })} 
-                                        />
-                                    </td>
-                                </tr>
-                                {/* Row 3 */}
-                                <tr className="hover:bg-slate-50 dark:hover:bg-[#222] transition-colors group">
-                                    <td className="px-6 py-4 text-xs font-bold font-mono text-[#FF7A00]">C0882-JKT</td>
-                                    <td className="px-6 py-4">
-                                        <span className="text-sm font-bold text-slate-900 dark:text-white block">BERKAH ABADI</span>
-                                        <span className="text-[10px] text-slate-500">Retailer • Tier 3</span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="px-2.5 py-1 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-[10px] font-bold uppercase tracking-wide">Inactive</span>
-                                    </td>
-                                    <td className="px-6 py-4 text-xs font-medium dark:text-slate-300">Andi Wijaya</td>
-                                    <td className="px-6 py-4">
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 max-w-[200px]">Jl. Raden Inten II No. 8</p>
-                                    </td>
-                                    <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">Duren Sawit / 07 / 03</td>
-                                    <td className="px-6 py-4 text-xs font-bold text-slate-900 dark:text-white">Jakarta Timur</td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-col text-[10px] font-mono text-slate-500 dark:text-slate-400 leading-tight">
-                                            <span>-6.2341° S</span>
-                                            <span>106.9186° E</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                        <ActionMenu 
-                                            customerId="C0882-JKT" 
-                                            openId={openActionId} 
-                                            setOpenId={setOpenActionId} 
-                                            onEdit={() => goToEdit({ code: "C0882-JKT", name: "BERKAH ABADI", lat: "-6.2341", lon: "106.9186", district: "Duren Sawit / 07 / 03", city: "Jakarta Timur" })} 
-                                        />
-                                    </td>
-                                </tr>
-                                {/* Row 4 */}
-                                <tr className="bg-slate-50/50 dark:bg-[#1f1f1f] hover:bg-slate-50 dark:hover:bg-[#222] transition-colors group">
-                                    <td className="px-6 py-4 text-xs font-bold font-mono text-[#FF7A00]">C5521-BKS</td>
-                                    <td className="px-6 py-4">
-                                        <span className="text-sm font-bold text-slate-900 dark:text-white block">SUMBER REJEKI</span>
-                                        <span className="text-[10px] text-slate-500">Partner • Key Account</span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-[10px] font-bold uppercase tracking-wide">Active</span>
-                                    </td>
-                                    <td className="px-6 py-4 text-xs font-medium dark:text-slate-300">Linda Sari</td>
-                                    <td className="px-6 py-4">
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 max-w-[200px]">Kawasan Industri Jababeka V</p>
-                                    </td>
-                                    <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">Cikarang / 02 / 10</td>
-                                    <td className="px-6 py-4 text-xs font-bold text-slate-900 dark:text-white">Bekasi</td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-col text-[10px] font-mono text-slate-500 dark:text-slate-400 leading-tight">
-                                            <span>-6.2856° S</span>
-                                            <span>107.1706° E</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                        <ActionMenu 
-                                            customerId="C5521-BKS" 
-                                            openId={openActionId} 
-                                            setOpenId={setOpenActionId} 
-                                            onEdit={() => goToEdit({ code: "C5521-BKS", name: "SUMBER REJEKI", lat: "-6.2856", lon: "107.1706", district: "Cikarang / 02 / 10", city: "Bekasi" })} 
-                                        />
-                                    </td>
-                                </tr>
-                                {/* Row 5 */}
-                                <tr className="hover:bg-slate-50 dark:hover:bg-[#222] transition-colors group">
-                                    <td className="px-6 py-4 text-xs font-bold font-mono text-[#FF7A00]">C9902-SOU</td>
-                                    <td className="px-6 py-4">
-                                        <span className="text-sm font-bold text-slate-900 dark:text-white block">SENTRA PANGAN</span>
-                                        <span className="text-[10px] text-slate-500">Distributor • Tier 1</span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-[10px] font-bold uppercase tracking-wide">Active</span>
-                                    </td>
-                                    <td className="px-6 py-4 text-xs font-medium dark:text-slate-300">Herry Pratama</td>
-                                    <td className="px-6 py-4">
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 max-w-[200px]">Jl. Fatmawati Raya No. 12B</p>
-                                    </td>
-                                    <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">Cilandak / 05 / 01</td>
-                                    <td className="px-6 py-4 text-xs font-bold text-slate-900 dark:text-white">Jakarta Selatan</td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-col text-[10px] font-mono text-slate-500 dark:text-slate-400 leading-tight">
-                                            <span>-6.2731° S</span>
-                                            <span>106.7968° E</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                        <ActionMenu 
-                                            customerId="C9902-SOU" 
-                                            openId={openActionId} 
-                                            setOpenId={setOpenActionId} 
-                                            onEdit={() => goToEdit({ code: "C9902-SOU", name: "SENTRA PANGAN", lat: "-6.2731", lon: "106.7968", district: "Cilandak / 05 / 01", city: "Jakarta Selatan" })} 
-                                        />
-                                    </td>
-                                </tr>
+                                
+                                {isCustomersLoading ? (
+                                    <tr>
+                                        <td colSpan={9} className="px-6 py-10 text-center text-slate-500 font-bold">
+                                            <div className="flex justify-center items-center gap-2">
+                                                <span className="material-symbols-outlined animate-spin">progress_activity</span>
+                                                Memuat Data Customer...
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : customers.length > 0 ? (
+                                    customers.map((cust: any, idx: number) => (
+                                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-[#222] transition-colors group">
+                                            <td className="px-6 py-4 text-xs font-bold font-mono text-[#FF7A00]">{cust.code}</td>
+                                            <td className="px-6 py-4">
+                                                <span className="text-sm font-bold text-slate-900 dark:text-white block">{cust.name}</span>
+                                                <span className="text-[10px] text-slate-500">{cust.tier || 'Retailer • Tier 1'}</span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {cust.status === 'Active' ? (
+                                                    <span className="px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-[10px] font-bold uppercase tracking-wide">Active</span>
+                                                ) : (
+                                                    <span className="px-2.5 py-1 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-[10px] font-bold uppercase tracking-wide">Inactive</span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-xs font-medium dark:text-slate-300">{cust.admin}</td>
+                                            <td className="px-6 py-4">
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 max-w-[200px]">{cust.address}</p>
+                                            </td>
+                                            <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">{cust.district}</td>
+                                            <td className="px-6 py-4 text-xs font-bold text-slate-900 dark:text-white">{cust.city}</td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-col text-[10px] font-mono text-slate-500 dark:text-slate-400 leading-tight">
+                                                    <span>{cust.lat}° S</span>
+                                                    <span>{cust.lon}° E</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <ActionMenu 
+                                                    customerId={cust.code} 
+                                                    openId={openActionId} 
+                                                    setOpenId={setOpenActionId} 
+                                                    onEdit={() => goToEdit(cust)} 
+                                                />
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr><td colSpan={9} className="text-center py-10 font-bold text-slate-500">Belum ada customer yang terdaftar!</td></tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
                     {/* Pagination */}
                     <div className="px-8 py-4 bg-slate-50 dark:bg-[#222] flex justify-between items-center border-t border-slate-200 dark:border-slate-800">
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Showing <span className="font-bold text-slate-900 dark:text-white">5</span> of <span className="font-bold text-slate-900 dark:text-white">1,284</span> entries</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Showing <span className="font-bold text-slate-900 dark:text-white">{customers.length > 0 ? 1 : 0}</span> to <span className="font-bold text-slate-900 dark:text-white">{customers.length}</span> of <span className="font-bold text-slate-900 dark:text-white">{customers.length}</span> entries</p>
                         <div className="flex items-center gap-2">
+                            {/* Filter and pagination buttons remaning unchanged */}
                             <div className="relative">
                                 <button onClick={() => setIsFilterOpen(!isFilterOpen)} className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-[#222] border border-slate-200 dark:border-slate-700 rounded-lg transition-colors active:scale-95 duration-150">
                                     <span className="material-symbols-outlined text-base">filter_list</span> Filter
@@ -507,10 +476,6 @@ export default function CustomerDirectory() {
                                 <span className="material-symbols-outlined text-[18px]">chevron_left</span>
                             </button>
                             <button className="px-3 py-1 text-xs font-bold bg-[#FF7A00] text-white rounded shadow-sm border border-[#FF7A00]">1</button>
-                            <button className="px-3 py-1 text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded transition-colors">2</button>
-                            <button className="px-3 py-1 text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded transition-colors">3</button>
-                            <span className="text-slate-400">...</span>
-                            <button className="px-3 py-1 text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded transition-colors">128</button>
                             <button className="w-8 h-8 flex items-center justify-center rounded bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-[#FF7A00] transition-all">
                                 <span className="material-symbols-outlined text-[18px]">chevron_right</span>
                             </button>
@@ -518,6 +483,6 @@ export default function CustomerDirectory() {
                     </div>
                 </div>
             </div>
-        </>
+        </div>
     );
 }

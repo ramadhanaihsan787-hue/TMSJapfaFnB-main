@@ -55,6 +55,7 @@ def list_customers(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
+    print("🕵️ API CUSTOMER DIPANGGIL!")
     query = db.query(models.MasterCustomer)
 
     if search:
@@ -68,6 +69,7 @@ def list_customers(
         )
 
     total = query.count()
+    print(f"📊 TOTAL DATA DI DATABASE: {total}")
     customers = query.offset(skip).limit(limit).all()
 
     return {

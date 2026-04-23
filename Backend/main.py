@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.utils import get_openapi
 
+
 # Core configuration
 from core.config import (
     APP_NAME,
@@ -29,6 +30,8 @@ from routers import analytics as analytics_router
 from routers import dashboard as dashboard_router
 from routers import settings as settings_router
 from routers import customer as customer_router
+from routers import auth, fleet, driver
+from routers import customer
 
 # ==========================================
 # CREATE TABLES
@@ -97,7 +100,8 @@ app.include_router(analytics_router.router, tags=["Analytics"])
 app.include_router(dashboard_router.router, tags=["Dashboard"])
 app.include_router(settings_router.router, tags=["Settings"])
 app.include_router(customer_router.router, tags=["Customers"])
-
+app.include_router(driver.router, tags=["Drivers"])
+app.include_router(customer.router)
 # ==========================================
 # HEALTH CHECK ENDPOINT
 # ==========================================

@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 import models
@@ -26,6 +26,20 @@ def get_settings(db: Session) -> models.SystemSettings:
         db.commit()
         db.refresh(settings)
     return settings
+
+# ==========================================
+# 🌟 HELPER BARU: Ubah String YYYY-MM-DD dari Frontend jadi Date Python
+# ==========================================
+def parse_dates(start_str: str, end_str: str):
+    try:
+        s_date = datetime.strptime(start_str, "%Y-%m-%d").date()
+        e_date = datetime.strptime(end_str, "%Y-%m-%d").date()
+        return s_date, e_date
+    except ValueError:
+        # Kalau format tanggal rusak, default ke 30 hari terakhir
+        e_date = date.today()
+        s_date = e_date - timedelta(days=30)
+        return s_date, e_date
 
 # ==========================================
 # HELPER: Hitung OTIF Real dari EPOD
@@ -63,19 +77,13 @@ def calculate_otif(start_date: date, end_date: date, db: Session) -> dict:
 # ==========================================
 @router.get("/kpi-summary")
 def get_kpi_summary(
-    period: str = "today",
+    startDate: str, 
+    endDate: str, 
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
-):
-    today = date.today()
-
-    if period == "7days":
-        start_date = today - timedelta(days=7)
-    elif period == "30days":
-        start_date = today - timedelta(days=30)
-    else:
-        start_date = today
-
+): 
+    # Ubah teks jadi tanggal beneran
+    start_date, end_date = parse_dates(startDate, endDate)
     settings = get_settings(db)
 
     # Total DO dalam rute
@@ -84,7 +92,7 @@ def get_kpi_summary(
         models.TMSRouteLine.route_id == models.TMSRoutePlan.route_id
     ).filter(
         models.TMSRoutePlan.planning_date >= start_date,
-        models.TMSRoutePlan.planning_date <= today,
+        models.TMSRoutePlan.planning_date <= end_date, # Pake end_date, bukan today lagi
         models.TMSRouteLine.sequence > 0
     ).count()
 
@@ -93,14 +101,14 @@ def get_kpi_summary(
         func.sum(models.TMSRoutePlan.total_weight)
     ).filter(
         models.TMSRoutePlan.planning_date >= start_date,
-        models.TMSRoutePlan.planning_date <= today
+        models.TMSRoutePlan.planning_date <= end_date
     ).scalar()
     total_berat = float(weight_raw) if weight_raw else 0.0
 
     # Total truk jalan
     total_trucks_used = db.query(models.TMSRoutePlan).filter(
         models.TMSRoutePlan.planning_date >= start_date,
-        models.TMSRoutePlan.planning_date <= today
+        models.TMSRoutePlan.planning_date <= end_date
     ).count()
 
     total_trucks_all = db.query(models.FleetVehicle).count() or 1
@@ -111,14 +119,14 @@ def get_kpi_summary(
         load_factor = 100.0
 
     # OTIF real
-    otif = calculate_otif(start_date, today, db)
+    otif = calculate_otif(start_date, end_date, db)
 
     # Total jarak
     dist_raw = db.query(
         func.sum(models.TMSRoutePlan.total_distance_km)
     ).filter(
         models.TMSRoutePlan.planning_date >= start_date,
-        models.TMSRoutePlan.planning_date <= today
+        models.TMSRoutePlan.planning_date <= end_date
     ).scalar()
     total_distance = float(dist_raw) if dist_raw else 0.0
 
@@ -140,7 +148,7 @@ def get_kpi_summary(
 
     return {
         "status": "success",
-        "period": period,
+        "period": f"{startDate} to {endDate}",
         "data": {
             "totalShipments": total_do,
             "otifRate": f"{otif['rate']}%",
@@ -148,7 +156,6 @@ def get_kpi_summary(
             "avgLoadingTime": f"{weight_str} KG",
             "transportCost": total_cost
         },
-        # Legacy support
         "total_deliveries_today": total_do,
         "success_rate_percent": otif['rate'],
         "load_factor_percent": load_factor,
@@ -162,24 +169,19 @@ def get_kpi_summary(
 # ==========================================
 @router.get("/delivery-volume")
 def get_delivery_volume(
-    period: str = "today",
+    startDate: str, 
+    endDate: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    today = date.today()
-    if period == "7days":
-        start_date = today - timedelta(days=7)
-    elif period == "30days":
-        start_date = today - timedelta(days=30)
-    else:
-        start_date = today
+    start_date, end_date = parse_dates(startDate, endDate)
 
     lines = db.query(models.TMSRouteLine).join(
         models.TMSRoutePlan,
         models.TMSRouteLine.route_id == models.TMSRoutePlan.route_id
     ).filter(
         models.TMSRoutePlan.planning_date >= start_date,
-        models.TMSRoutePlan.planning_date <= today,
+        models.TMSRoutePlan.planning_date <= end_date,
         models.TMSRouteLine.sequence > 0
     ).all()
 
@@ -206,6 +208,7 @@ def get_delivery_volume(
     ]
     max_val = max([v for v in buckets.values()] + [1])
 
+    # 🌟 INI DIA YANG ILANG KEMAREN BOS! REZEKI NOMPLOK!
     return {"status": "success", "data": data, "max": max_val}
 
 # ==========================================
@@ -213,24 +216,21 @@ def get_delivery_volume(
 # ==========================================
 @router.get("/fleet-utilization")
 def get_fleet_utilization(
-    period: str = "today",
+    startDate: str, 
+    endDate: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    today = date.today()
-    if period == "7days":
-        start_date = today - timedelta(days=7)
-    elif period == "30days":
-        start_date = today - timedelta(days=30)
-    else:
-        start_date = today
-
+    start_date, end_date = parse_dates(startDate, endDate)
     total_truck = db.query(models.FleetVehicle).count() or 1
-    days = 1 if period == "today" else (7 if period == "7days" else 30)
+    
+    # Hitung selisih hari
+    delta_days = (end_date - start_date).days + 1
+    days = delta_days if delta_days > 0 else 1
 
     total_rute = db.query(models.TMSRoutePlan).filter(
         models.TMSRoutePlan.planning_date >= start_date,
-        models.TMSRoutePlan.planning_date <= today
+        models.TMSRoutePlan.planning_date <= end_date
     ).count()
 
     active_avg = round(total_rute / days)
@@ -253,18 +253,12 @@ def get_fleet_utilization(
 # ==========================================
 @router.get("/driver-performance")
 def get_driver_performance(
-    period: str = "today",
+    startDate: str, 
+    endDate: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    today = date.today()
-    if period == "7days":
-        start_date = today - timedelta(days=7)
-    elif period == "30days":
-        start_date = today - timedelta(days=30)
-    else:
-        start_date = today
-
+    start_date, end_date = parse_dates(startDate, endDate)
     drivers = db.query(models.HRDriver).all()
     hasil = []
 
@@ -272,7 +266,7 @@ def get_driver_performance(
         rutes = db.query(models.TMSRoutePlan).filter(
             models.TMSRoutePlan.driver_id == d.driver_id,
             models.TMSRoutePlan.planning_date >= start_date,
-            models.TMSRoutePlan.planning_date <= today
+            models.TMSRoutePlan.planning_date <= end_date
         ).all()
 
         total_trips = len(rutes)
@@ -312,16 +306,14 @@ def get_driver_performance(
         score = min(70 + (ontime_rate // 5), 100)
 
         hasil.append({
-            # Format Analytics
             "driver_name": d.name,
             "total_trips": total_do,
             "on_time_rate": ontime_rate,
             "fuel_rating": fuel_rating,
-            # Format Dashboard
             "id": f"DRV-{d.driver_id:03d}",
             "name": d.name,
             "avatar": f"https://ui-avatars.com/api/?name={d.name.replace(' ', '+')}&background=0D8ABC&color=fff",
-            "status": "On Route" if total_trips > 0 and period == "today" else "Offline",
+            "status": "On Route" if total_trips > 0 else "Offline",
             "score": score,
             "ontime": f"{ontime_rate}%",
             "doSuccess": f"{ontime_count}",
@@ -340,12 +332,23 @@ def get_driver_performance(
 # ==========================================
 @router.get("/rejections")
 def get_rejection_analysis(
+    startDate: str = None, 
+    endDate: str = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    rejected = db.query(models.TMSEpodHistory).filter(
-        models.TMSEpodHistory.status == models.DOStatus.delivered_partial
-    ).count()
+    # Buat endpoint rejections juga sekalian gw benerin kalau mau difilter
+    if startDate and endDate:
+        start_date, end_date = parse_dates(startDate, endDate)
+        rejected = db.query(models.TMSEpodHistory).filter(
+            models.TMSEpodHistory.status == models.DOStatus.delivered_partial,
+            func.date(models.TMSEpodHistory.timestamp) >= start_date,
+            func.date(models.TMSEpodHistory.timestamp) <= end_date
+        ).count()
+    else:
+        rejected = db.query(models.TMSEpodHistory).filter(
+            models.TMSEpodHistory.status == models.DOStatus.delivered_partial
+        ).count()
 
     if rejected == 0:
         return {

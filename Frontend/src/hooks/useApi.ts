@@ -14,7 +14,7 @@ interface UseApiResponse<T> {
 }
 
 /**
- * A custom hook for making API calls with loading and error states.
+ * Custom hook buat narik data API. Sudah otomatis bawa JWT Token!
  */
 export function useApi<T>(url: string, initialOptions: UseApiOptions = {}): UseApiResponse<T> {
     const [data, setData] = useState<T | null>(null);
@@ -29,16 +29,33 @@ export function useApi<T>(url: string, initialOptions: UseApiOptions = {}): UseA
         setError(null);
 
         try {
-            const response = await fetch(url, {
+            // 🌟 CARA BARU YANG DISUKAI TYPESCRIPT
+            const token = localStorage.getItem('token');
+            
+            // 1. Bikin tas (object) khusus buat headers yang isinya pasti Teks (String)
+            const fetchHeaders: Record<string, string> = {
+                'Content-Type': 'application/json',
+                ...headers,
+            };
+
+            // 2. Kalau KTP-nya (Token) ada, baru kita masukin ke dalem tas
+            if (token) {
+                fetchHeaders['Authorization'] = `Bearer ${token}`;
+            }
+
+            // 3. Tembak API-nya
+            const response = await fetch(`http://127.0.0.1:8000${url}`, {
                 method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...headers,
-                },
+                headers: fetchHeaders,
                 body: body ? JSON.stringify(body) : undefined,
             });
 
             if (!response.ok) {
+                // Kalau satpam Backend nolak karena KTP mati/rusak, langsung tendang ke halaman login
+                if (response.status === 401) {
+                    localStorage.removeItem('token');
+                    window.location.href = '/login';
+                }
                 throw new Error(`API Error: ${response.status} ${response.statusText}`);
             }
 

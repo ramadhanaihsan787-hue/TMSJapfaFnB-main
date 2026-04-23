@@ -19,7 +19,7 @@ import LogisticsAnalytics from './pages/logistik/Analytics';
 import LogisticsSettings from './pages/logistik/Settings';
 import LoadPlanner from './pages/logistik/LoadPlanner';
 import CustomerData from './pages/logistik/CustomerData';
-import ManagerLogistik from './pages/manager logistik/ManagerLogistik';
+import ManagerLogistik from './pages/manager_logistik/ManagerLogistik';
 
 // Admin POD Pages
 import PodDashboard from './pages/pod/Dashboard';
@@ -27,8 +27,6 @@ import PodVerifications from './pages/pod/Verifications';
 import PodMonitoring from './pages/pod/Monitoring';
 import PodHistory from './pages/pod/History';
 import PodSettings from './pages/pod/Settings';
-
-
 
 // Driver Pages
 import DriverDashboard from './pages/driver/Dashboard';
@@ -55,7 +53,8 @@ function App() {
             <Route path="/" element={<Navigate to="/login" replace />} />
 
             {/* Admin Logistik Routes */}
-            <Route element={<RoleGuard allowedRoles={['logistik']} />}>
+            {/* 🌟 CUMA UBAH INI: 'logistik' -> 'admin_distribusi' */}
+            <Route element={<RoleGuard allowedRoles={['admin_distribusi']} />}>
               <Route element={<LogisticsLayout />}>
                 <Route path="/logistik" element={<LogisticsDashboard />} />
                 <Route path="/logistik/route-planning" element={<LogisticsRoutePlanning />} />
@@ -69,14 +68,16 @@ function App() {
             </Route>
 
             {/* Manager Logistik Routes */}
-            <Route element={<RoleGuard allowedRoles={['manager']} />}>
+            {/* 🌟 CUMA UBAH INI: 'manager' -> 'manager_logistik' */}
+            <Route element={<RoleGuard allowedRoles={['manager_logistik']} />}>
               <Route element={<LogisticsLayout />}>
                 <Route path="/manager" element={<ManagerLogistik />} />
               </Route>
             </Route>
 
             {/* Admin POD Routes */}
-            <Route element={<RoleGuard allowedRoles={['pod']} />}>
+            {/* 🌟 CUMA UBAH INI: 'pod' -> 'admin_pod' */}
+            <Route element={<RoleGuard allowedRoles={['admin_pod']} />}>
               <Route path="/pod" element={<PodDashboard />} />
               <Route path="/pod/verifications" element={<PodVerifications />} />
               <Route path="/pod/monitoring" element={<PodMonitoring />} />
@@ -87,6 +88,7 @@ function App() {
             </Route>
 
             {/* Driver Routes (Mobile First) */}
+            {/* 🌟 INI TETEP: 'driver' */}
             <Route element={<RoleGuard allowedRoles={['driver']} />}>
               <Route path="/driver" element={<DriverDashboard />} />
               <Route path="/driver/routes" element={<DriverRouteList />} />
