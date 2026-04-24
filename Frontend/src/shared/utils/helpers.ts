@@ -198,3 +198,91 @@ export const slugify = (str: string): string => {
 export const delay = (ms: number): Promise<void> => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
+
+export const throttle = <T extends (...args: any[]) => any>(
+  func: T,
+  limit: number
+): (...args: Parameters<T>) => void => {
+  let inThrottle: boolean;
+  return (...args: Parameters<T>) => {
+    if (!inThrottle) {
+      func(...args);
+      inThrottle = true;
+      setTimeout(() => (inThrottle = false), limit);
+    }
+  };
+};
+
+export const debounce = <T extends (...args: any[]) => any>(
+  func: T,
+  delay: number
+): (...args: Parameters<T>) => void => {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func(...args), delay);
+  };
+};
+
+// ============= LOCAL STORAGE =============
+export const getFromLocalStorage = <T = any>(key: string, defaultValue?: T): T | null => {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : (defaultValue || null);
+  } catch (error) {
+    console.error(`Error reading from localStorage: ${key}`, error);
+    return defaultValue || null;
+  }
+};
+
+export const saveToLocalStorage = (key: string, value: any): void => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.error(`Error writing to localStorage: ${key}`, error);
+  }
+};
+
+export const removeFromLocalStorage = (key: string): void => {
+  try {
+    localStorage.removeItem(key);
+  } catch (error) {
+    console.error(`Error removing from localStorage: ${key}`, error);
+  }
+};
+
+export const clearLocalStorage = (): void => {
+  try {
+    localStorage.clear();
+  } catch (error) {
+    console.error("Error clearing localStorage", error);
+  }
+};
+
+// ============= COPY TO CLIPBOARD =============
+export const copyToClipboard = async (text: string): Promise<boolean> => {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (error) {
+    console.error("Error copying to clipboard", error);
+    return false;
+  }
+};
+
+// ============= RANDOM UTILITIES =============
+export const generateId = (): string => {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
+export const generateUUID = (): string => {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
+export const pickRandomItem = <T>(array: T[]): T | undefined => {
+  return array[Math.floor(Math.random() * array.length)];
+};

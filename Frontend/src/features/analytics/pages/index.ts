@@ -1,1 +1,1 @@
-﻿export { default as AnalyticsPage } from './AnalyticsPage.tsx'
+﻿export { default as AnalyticsPage } from './AnalyticsPage';

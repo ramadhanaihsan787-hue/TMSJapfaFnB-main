@@ -1,1 +1,1 @@
-﻿export { default as DriverPerformancePage } from './DriverPerformancePage.tsx'
+﻿export { default as DriverPerformancePage } from './DriverPerformancePage';

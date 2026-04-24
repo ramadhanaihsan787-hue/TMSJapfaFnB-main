@@ -57,3 +57,11 @@ export const useSidebarClose = () => {
   const { close } = useSidebar();
   return close;
 };
+
+/**
+ * Convenience hook to get sidebar open function
+ */
+export const useSidebarOpen = () => {
+  const { open } = useSidebar();
+  return open;
+};

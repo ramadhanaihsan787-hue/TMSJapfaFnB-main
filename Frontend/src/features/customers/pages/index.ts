@@ -1,1 +1,1 @@
-﻿export { default as CustomerDataPage } from './CustomerDataPage.tsx'
+﻿export { default as CustomerDataPage } from './CustomerDataPage';

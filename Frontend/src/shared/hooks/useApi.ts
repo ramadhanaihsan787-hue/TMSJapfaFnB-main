@@ -29,17 +29,21 @@ export function useApi<T>(url: string, initialOptions: UseApiOptions = {}): UseA
         setError(null);
 
         try {
+            // 🌟 CARA BARU YANG DISUKAI TYPESCRIPT
             const token = localStorage.getItem('token');
             
+            // 1. Bikin tas (object) khusus buat headers yang isinya pasti Teks (String)
             const fetchHeaders: Record<string, string> = {
                 'Content-Type': 'application/json',
                 ...headers,
             };
 
+            // 2. Kalau KTP-nya (Token) ada, baru kita masukin ke dalem tas
             if (token) {
                 fetchHeaders['Authorization'] = `Bearer ${token}`;
             }
 
+            // 3. Tembak API-nya
             const response = await fetch(`http://127.0.0.1:8000${url}`, {
                 method,
                 headers: fetchHeaders,
@@ -47,6 +51,7 @@ export function useApi<T>(url: string, initialOptions: UseApiOptions = {}): UseA
             });
 
             if (!response.ok) {
+                // Kalau satpam Backend nolak karena KTP mati/rusak, langsung tendang ke halaman login
                 if (response.status === 401) {
                     localStorage.removeItem('token');
                     window.location.href = '/login';

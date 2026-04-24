@@ -202,3 +202,36 @@ export const validateFileSize = (
   }
   return { isValid: true };
 };
+
+export const validateFileType = (
+  file: File,
+  allowedTypes: string[]
+): { isValid: boolean; error?: string } => {
+  if (!allowedTypes.includes(file.type)) {
+    return {
+      isValid: false,
+      error: `Tipe file tidak didukung. Tipe yang diizinkan: ${allowedTypes.join(", ")}`,
+    };
+  }
+  return { isValid: true };
+};
+
+// ============= FORM BATCH VALIDATION =============
+export const validateForm = (
+  formData: Record<string, any>,
+  rules: Record<string, (value: any) => { isValid: boolean; error?: string }>
+): { isValid: boolean; errors: Record<string, string> } => {
+  const errors: Record<string, string> = {};
+
+  Object.keys(rules).forEach((field) => {
+    const validation = rules[field](formData[field]);
+    if (!validation.isValid && validation.error) {
+      errors[field] = validation.error;
+    }
+  });
+
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors,
+  };
+};

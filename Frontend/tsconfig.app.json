@@ -22,7 +22,13 @@
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+
+    /* 🌟 ALIAS FOLDER SHARED (VERSI PALING GG) 🌟 */
+    "paths": {
+      "shared": ["./src/shared"],
+      "shared/*": ["./src/shared/*"]
+    }
   },
   "include": ["src"]
 }

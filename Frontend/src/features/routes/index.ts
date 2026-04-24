@@ -1,6 +1,6 @@
-﻿// routes feature barrel export
-export * from './pages';
-export * from './components';
-export * from './hooks';
-export * from './types';
-export * from './services';
+﻿// src/features/routes/index.ts
+export * from './pages/index';
+export * from './components/index';
+export * from './hooks/index';
+export * from './types'; // Kalo ini biarin, karena dia emang file types.ts
+export * from './services/index';

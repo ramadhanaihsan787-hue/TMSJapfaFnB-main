@@ -119,12 +119,12 @@ def get_system_settings(
 def update_system_settings(
     data: SystemSettingsUpdate,
     db: Session = Depends(get_db),
-    # 🌟 HANYA Manager Logistik yang bisa ubah settings
-    current_user: models.User = Depends(require_role("manager_logistik"))
+    # 🌟 GANTI KUNCI AKSES JADI ADMIN DISTRIBUSI!
+    current_user: models.User = Depends(require_role("admin_distribusi"))
 ):
     """
     Update konfigurasi sistem
-    Hanya Manager Logistik yang bisa mengubah
+    Sekarang Admin Distribusi yang jadi bosnya Settings!
     """
     settings = get_or_create_settings(db)
 

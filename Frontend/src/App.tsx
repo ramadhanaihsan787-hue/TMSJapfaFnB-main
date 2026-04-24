@@ -10,15 +10,17 @@ import Login from './pages/login/Login';
 import { TermsOfService } from './pages/login/Login';
 import { PrivacyPolicy } from './pages/login/Login';
 
-// Admin Logistik Pages
-import LogisticsDashboard from './pages/logistik/Dashboard';
-import LogisticsRoutePlanning from './pages/logistik/RoutePlanning';
-import LogisticsDriverPerformance from './pages/logistik/DriverPerformance';
-import LogisticsFleetManagement from './pages/logistik/FleetManagement';
-import LogisticsAnalytics from './pages/logistik/Analytics';
-import LogisticsSettings from './pages/logistik/Settings';
+// 🌟 INI YANG BERUBAH BOS! IMPORT FILE RAKITAN BARU KITA!
+import LogistikDashboard from './features/dashboard/pages/LogistikDashboard';
+
+// Admin Logistik Pages (Sisanya masih pake yang lama, gapapa biarin aja dulu)
+import LogisticsRoutePlanning from './features/routes/pages/RoutePlanningPage';
+import LogisticsDriverPerformance from './features/drivers/pages/DriverPerformancePage';
+import LogisticsFleetManagement from './features/fleet/pages/FleetManagementPage';
+import LogisticsAnalytics from './features/analytics/pages/AnalyticsPage';
+import LogisticsSettings from './features/settings/pages/SettingsPage';
 import LoadPlanner from './pages/logistik/LoadPlanner';
-import CustomerData from './pages/logistik/CustomerData';
+import CustomerData from './features/customers/pages/CustomerDataPage';
 import ManagerLogistik from './pages/manager_logistik/ManagerLogistik';
 
 // Admin POD Pages
@@ -53,10 +55,10 @@ function App() {
             <Route path="/" element={<Navigate to="/login" replace />} />
 
             {/* Admin Logistik Routes */}
-            {/* 🌟 CUMA UBAH INI: 'logistik' -> 'admin_distribusi' */}
             <Route element={<RoleGuard allowedRoles={['admin_distribusi']} />}>
               <Route element={<LogisticsLayout />}>
-                <Route path="/logistik" element={<LogisticsDashboard />} />
+                {/* 🌟 INI JUGA BERUBAH: Panggil komponen LogistikDashboard yang baru */}
+                <Route path="/logistik" element={<LogistikDashboard />} />
                 <Route path="/logistik/route-planning" element={<LogisticsRoutePlanning />} />
                 <Route path="/logistik/fleet" element={<LogisticsFleetManagement />} />
                 <Route path="/logistik/drivers" element={<LogisticsDriverPerformance />} />
@@ -68,7 +70,6 @@ function App() {
             </Route>
 
             {/* Manager Logistik Routes */}
-            {/* 🌟 CUMA UBAH INI: 'manager' -> 'manager_logistik' */}
             <Route element={<RoleGuard allowedRoles={['manager_logistik']} />}>
               <Route element={<LogisticsLayout />}>
                 <Route path="/manager" element={<ManagerLogistik />} />
@@ -76,7 +77,6 @@ function App() {
             </Route>
 
             {/* Admin POD Routes */}
-            {/* 🌟 CUMA UBAH INI: 'pod' -> 'admin_pod' */}
             <Route element={<RoleGuard allowedRoles={['admin_pod']} />}>
               <Route path="/pod" element={<PodDashboard />} />
               <Route path="/pod/verifications" element={<PodVerifications />} />
@@ -88,7 +88,6 @@ function App() {
             </Route>
 
             {/* Driver Routes (Mobile First) */}
-            {/* 🌟 INI TETEP: 'driver' */}
             <Route element={<RoleGuard allowedRoles={['driver']} />}>
               <Route path="/driver" element={<DriverDashboard />} />
               <Route path="/driver/routes" element={<DriverRouteList />} />

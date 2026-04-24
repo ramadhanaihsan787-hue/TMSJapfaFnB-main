@@ -215,7 +215,7 @@ Search and replace all imports across the codebase:
 
 ```typescript
 // OLD imports
-import { useApi } from '../hooks/useApi';
+import { useApi } from 'shared/hooks/useApi';
 import { formatDate } from '../utils/formatters';
 import type { Dashboard } from '../types/dashboard';
 

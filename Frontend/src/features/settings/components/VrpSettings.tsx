@@ -1,0 +1,59 @@
+import type { SettingsFormData } from '../types';
+
+interface VrpSettingsProps {
+    formData: SettingsFormData;
+    onChange: (field: keyof SettingsFormData, value: string | number) => void;
+}
+
+export default function VrpSettings({ formData, onChange }: VrpSettingsProps) {
+    return (
+        <div className="animate-fadeIn">
+            <div className="mb-6">
+                <h2 className="text-lg font-bold tracking-tight mb-1 text-[#111] dark:text-white">VRP & Routing Engine 2</h2>
+                <p className="text-slate-500 dark:text-slate-400 text-xs">Configure how the OR-Tools AI algorithm thinks and constraints operational parameters.</p>
+            </div>
+
+            <div className="bg-white dark:bg-[#111111] border border-slate-200 dark:border-[#333] rounded-xl p-8 shadow-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="flex flex-col gap-2">
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Default Start Time (HH:MM)</label>
+                        <div className="relative">
+                            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">schedule</span>
+                            <input value={formData.vrp_start_time} onChange={(e) => onChange('vrp_start_time', e.target.value)} className="w-full pl-12 pr-4 py-2 bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-[#333] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm text-[#111] dark:text-white transition-all" type="time" />
+                        </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Default End Time (HH:MM)</label>
+                        <div className="relative">
+                            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">update</span>
+                            <input value={formData.vrp_end_time} onChange={(e) => onChange('vrp_end_time', e.target.value)} className="w-full pl-12 pr-4 py-2 bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-[#333] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm text-[#111] dark:text-white transition-all" type="time" />
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Base Drop Time (Minutes)</label>
+                        <div className="relative">
+                            <input value={formData.vrp_base_drop_time_mins} onChange={(e) => onChange('vrp_base_drop_time_mins', Number(e.target.value))} className="w-full px-4 py-2 bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-[#333] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm text-[#111] dark:text-white transition-all text-right pr-14" type="number" />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-xs">Mins</span>
+                        </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Variable Drop Time (per 10 KG)</label>
+                        <div className="relative">
+                            <input value={formData.vrp_var_drop_time_mins} onChange={(e) => onChange('vrp_var_drop_time_mins', Number(e.target.value))} className="w-full px-4 py-2 bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-[#333] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm text-[#111] dark:text-white transition-all text-right pr-14" type="number" />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-xs">Mins</span>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 md:col-span-2">
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Max Vehicle Capacity Buffer (%)</label>
+                        <div className="flex items-center gap-4">
+                            <input value={formData.vrp_capacity_buffer_percent} onChange={(e) => onChange('vrp_capacity_buffer_percent', Number(e.target.value))} type="range" min="50" max="100" className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary" />
+                            <div className="w-16 text-center py-1 bg-primary/10 text-primary font-bold rounded-lg text-sm">{formData.vrp_capacity_buffer_percent}%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}

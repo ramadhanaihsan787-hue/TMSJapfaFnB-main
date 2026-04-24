@@ -1,0 +1,315 @@
+
+---
+
+## 📋 RENCANA REFACTORING STRUKTUR BACKEND
+
+Berikut adalah analisis lengkap untuk perbaikan struktur Backend dengan penjelasan detail:
+
+### **STRUKTUR BACKEND BARU (RECOMMENDED)**
+
+```
+Backend/
+├── core/                          ✓ BARU: Konfigurasi & Keamanan
+│   ├── __init__.py
+│   ├── config.py                  ← Database URL, app settings dari .env
+│   ├── security.py                ← Password hashing, JWT functions
+│   ├── constants.py               ← Constant values (ALGORITHM, EXPIRY, dll)
+│   └── enums.py                   ← Enum definitions (UserRole, DOStatus, dll)
+│
+├── services/                      ✓ BARU: Business Logic Layer
+│   ├── __init__.py
+│   ├── auth_service.py            ← Authentication business logic
+│   ├── order_service.py           ← Order processing logic
+│   ├── fleet_service.py           ← Vehicle fleet management logic
+│   ├── vrp_service.py             ← VRP optimization (wraps vrp_solver.py)
+│   ├── geocoding_service.py       ← Geocoding operations
+│   ├── analytics_service.py       ← Analytics computations
+│   └── route_service.py           ← Route management logic
+│
+├── utils/                         ✓ BARU: Utility Functions
+│   ├── __init__.py
+│   ├── helpers.py                 ← General helpers (calculate_haversine, menit_ke_jam, dll)
+│   ├── validators.py              ← Data validation functions
+│   ├── formatters.py              ← Data formatting & transformation
+│   └── distance_calc.py           ← Distance calculation utilities
+│
+├── scripts/                       ✓ BARU: Data Initialization & Seeding
+│   ├── __init__.py
+│   ├── seed_data.py               ← Seed customer data
+│   ├── seed_armada.py             ← Seed vehicle/fleet data
+│   ├── init_db.py                 ← Initialize database tables
+│   └── create_admin.py            ← Create first admin user
+│
+├── routers/                       ✓ EXISTING: API Endpoints
+│   ├── __init__.py
+│   ├── auth.py                    ← Authentication endpoints
+│   ├── orders.py                  ← Order management endpoints
+│   ├── fleet.py                   ← Fleet management endpoints
+│   ├── dashboard.py               ← Dashboard endpoints
+│   ├── analytics.py               ← Analytics endpoints
+│   ├── vrp.py                     ← VRP optimization endpoints
+│   ├── settings.py                ← Settings endpoints
+│   └── customer.py                ← Customer endpoints
+│
+├── alembic/                       ✓ EXISTING: DB Migrations
+├── uploads/                       ✓ EXISTING: File storage
+├── route_geometries/              ✓ EXISTING: Route GeoJSON files
+│
+├── models.py                      ✓ EXISTING: SQLAlchemy models (tetap di root)
+├── schemas.py                     ✓ EXISTING: Pydantic schemas (tetap di root)
+├── database.py                    ✓ EXISTING: DB connection (tetap di root, tapi refactored)
+├── dependencies.py                ✓ EXISTING: FastAPI dependencies (tetap di root)
+├── main.py                        ✓ EXISTING: App entry point (CLEANER setelah refactor)
+│
+├── requirements.txt               ✓ EXISTING
+├── .env                           ✓ EXISTING
+├── alembic.ini                    ✓ EXISTING
+└── vercel.json                    ✓ EXISTING
+```
+
+---
+
+## 📁 PENJELASAN DETAIL SETIAP FOLDER & KONTENNYA
+
+### **1️⃣ FOLDER `core/` - CORE CONFIGURATION & SECURITY**
+
+**Tujuan:** Menyimpan konfigurasi aplikasi, pengaturan keamanan, dan konstanta global yang digunakan di seluruh aplikasi.
+
+| File | Isi | Fungsi | Sumber |
+|------|-----|--------|--------|
+| **config.py** | `DATABASE_URL`, `SECRET_KEY`, `ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES` | Centralize environment variables & app config | Dari database.py & auth.py |
+| **security.py** | `verify_password()`, `get_password_hash()`, `create_access_token()` | Security functions untuk password & JWT | Dari auth.py |
+| **constants.py** | `ALGORITHM = "HS256"`, `DEFAULT_EXPIRY = 1440` | Immutable constants | Dari auth.py & .env |
+| **enums.py** | `UserRole`, `DOStatus`, `ServiceType` | Enum definitions | Dari models.py |
+
+**Contoh isi config.py:**
+```python
+# core/config.py
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://...")
+SECRET_KEY = os.getenv("SECRET_KEY", "fallback_key")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
+
+# App settings
+APP_NAME = "TMS JAPFA - AI Engine"
+APP_VERSION = "2.0.0"
+DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+```
+
+---
+
+### **2️⃣ FOLDER `services/` - BUSINESS LOGIC LAYER**
+
+**Tujuan:** Menyimpan business logic yang kompleks. Services adalah layer di antara routers (API handlers) dan database. Ini memisahkan logika bisnis dari HTTP handling.
+
+| File | Isi | Fungsi | Sumber |
+|------|-----|--------|--------|
+| **auth_service.py** | `authenticate_user()`, `create_user()`, `get_user_by_username()` | User authentication & registration logic | Dari auth.py + routers/auth.py |
+| **order_service.py** | `create_order()`, `update_order_status()`, `get_orders_by_date()`, `classify_store()` | Order processing logic | Dari main.py + routers/orders.py |
+| **fleet_service.py** | `get_available_vehicles()`, `assign_vehicle_to_route()`, `get_fleet_utilization()` | Fleet management | Dari routers/fleet.py |
+| **vrp_service.py** | `optimize_routes()`, `solve_vrp()`, `calculate_matrices()` | VRP optimization wrapper | Dari vrp_solver.py + main.py |
+| **geocoding_service.py** | `reverse_geocode()`, `forward_geocode()`, `batch_geocode()` | Geocoding operations | Dari geocoding.py |
+| **analytics_service.py** | `calculate_delivery_metrics()`, `generate_analytics_report()` | Analytics computations | Dari routers/analytics.py |
+| **route_service.py** | `confirm_routes()`, `get_all_routes()`, `update_route()` | Route management | Dari main.py + routers/ |
+
+**Contoh isi order_service.py:**
+```python
+# services/order_service.py
+from sqlalchemy.orm import Session
+from models import DeliveryOrder, DOStatus
+from schemas import OrderCreate
+from utils.helpers import classify_store
+from utils.validators import validate_coordinates
+
+class OrderService:
+    @staticmethod
+    def create_order(db: Session, order_data: OrderCreate):
+        # Validate
+        validate_coordinates(order_data.latitude, order_data.longitude)
+        
+        # Classify
+        store_type = classify_store(order_data.customer_name)
+        
+        # Create
+        order = DeliveryOrder(**order_data.dict(), store_id=store_type)
+        db.add(order)
+        db.commit()
+        return order
+    
+    @staticmethod
+    def update_order_status(db: Session, order_id: str, status: DOStatus):
+        order = db.query(DeliveryOrder).filter_by(order_id=order_id).first()
+        if order:
+            order.status = status
+            db.commit()
+        return order
+```
+
+---
+
+### **3️⃣ FOLDER `utils/` - UTILITY FUNCTIONS**
+
+**Tujuan:** Helper functions yang stateless dan reusable di mana saja dalam aplikasi. Tidak bergantung pada database atau business logic.
+
+| File | Isi | Fungsi | Sumber |
+|------|-----|--------|--------|
+| **helpers.py** | `calculate_haversine()`, `menit_ke_jam()`, `tambah_koma()` | General-purpose helper functions | Dari main.py + geocoding.py |
+| **validators.py** | `validate_email()`, `validate_coordinates()`, `validate_order_data()` | Input validation functions | Dari schemas.py |
+| **formatters.py** | `format_time()`, `format_coordinates()`, `format_response()` | Data formatting & transformation | Dari main.py |
+| **distance_calc.py** | Distance matrix calculation utilities | Calculation helpers untuk VRP | Dari vrp_solver.py |
+
+**Contoh isi helpers.py:**
+```python
+# utils/helpers.py
+import math
+from datetime import time
+
+def calculate_haversine(lat1, lon1, lat2, lon2):
+    """Calculate distance between two coordinates in meters"""
+    R = 6371000  # Earth radius in meters
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    
+    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+    c = 2*math.atan2(math.sqrt(a), math.sqrt(1-a))
+    return R * c
+
+def menit_ke_jam(menit_total):
+    """Convert minutes to time object"""
+    return time(hour=int((menit_total // 60) % 24), minute=int(menit_total % 60))
+
+def tambah_koma(teks):
+    """Add comma prefix if text is not empty"""
+    teks = str(teks).strip()
+    if teks and teks.lower() != 'nan':
+        return ', ' + teks
+    return ''
+```
+
+---
+
+### **4️⃣ FOLDER `scripts/` - DATA SEEDING & INITIALIZATION**
+
+**Tujuan:** Menyimpan script untuk populate data awal database dan setup database. Ini tidak untuk production API, tapi untuk development & testing.
+
+| File | Isi | Fungsi | Sumber |
+|------|-----|--------|--------|
+| **init_db.py** | `create_all_tables()` | Inisialisasi database tables | Tetap sama |
+| **seed_data.py** | `seed_customers()`, `seed_orders()` | Populate customer data | Tetap sama |
+| **seed_armada.py** | `seed_vehicles()`, `seed_drivers()` | Populate vehicle & driver data | Tetap sama |
+| **create_admin.py** | `create_first_admin()` | Create initial admin user | Tetap sama |
+
+**Cara menggunakan:**
+```bash
+cd Backend
+python -m scripts.init_db        # Initialize database
+python -m scripts.seed_data      # Seed customers
+python -m scripts.seed_armada    # Seed vehicles
+python -m scripts.create_admin   # Create admin user
+```
+
+---
+
+### **5️⃣ FOLDER `routers/` - API ENDPOINTS (EXISTING)**
+
+**Tujuan:** HTTP handler/controller layer. Menerima request, memanggil services, return response.
+
+**Setelah refactor, routers hanya untuk HTTP handling saja:**
+
+```python
+# routers/orders.py - AFTER REFACTOR
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from services.order_service import OrderService
+from dependencies import get_db, get_current_user
+
+router = APIRouter(prefix="/orders", tags=["orders"])
+
+@router.post("/")
+async def create_order(order_data: OrderCreate, db: Session = Depends(get_db)):
+    service = OrderService()
+    return service.create_order(db, order_data)
+
+@router.get("/{order_id}")
+async def get_order(order_id: str, db: Session = Depends(get_db)):
+    service = OrderService()
+    return service.get_order(db, order_id)
+```
+
+---
+
+## 📊 FILE MAPPING - MANA KE MANA
+
+```
+BEFORE                          →    AFTER
+─────────────────────────────────────────────────────────
+auth.py (functions)             →    core/security.py
+auth.py (env vars)              →    core/config.py
+auth.py (imports ke routers)    →    routers/auth.py (unchanged)
+
+database.py (URL)               →    core/config.py
+database.py (SessionLocal)      →    database.py (unchanged)
+
+main.py (calculate_haversine)   →    utils/helpers.py
+main.py (menit_ke_jam)          →    utils/helpers.py
+main.py (classify_store)        →    utils/helpers.py
+main.py (calculate_routes logic) →   services/vrp_service.py
+main.py (upload_sap_file)       →    services/order_service.py
+
+geocoding.py (semua fungsi)     →    services/geocoding_service.py
+vrp_solver.py (semua fungsi)    →    services/vrp_service.py
+
+seed_data.py                    →    scripts/seed_data.py (pindah ke folder)
+seed_armada.py                  →    scripts/seed_armada.py (pindah ke folder)
+init_db.py                      →    scripts/init_db.py (pindah ke folder)
+create_admin.py                 →    scripts/create_admin.py (pindah ke folder)
+
+dependencies.py                 →    TETAP (tapi import dari core/security.py)
+models.py                       →    TETAP di root (besar, no need move)
+schemas.py                      →    TETAP di root (besar, no need move)
+main.py                         →    TETAP di root tapi CLEANER (import dari modules)
+```
+
+---
+
+## 🔄 DEPENDENCY FLOW (SETELAH REFACTOR)
+
+```
+REQUEST (HTTP) 
+    ↓
+routers/ (handlers)
+    ↓
+services/ (business logic)
+    ↓
+utils/ (helpers)
+    ↓
+models/ & database
+    ↓
+DATABASE
+
+SECURITY:
+requests → dependencies.py → core/security.py ✓
+```
+
+---
+
+## ✨ KEUNTUNGAN REFACTORING INI
+
+| Aspek | Before | After |
+|-------|--------|-------|
+| **Modularity** | ❌ Logic campur | ✅ Separated concerns |
+| **Testability** | ⚠️ Sulit test | ✅ Easy to mock services |
+| **Maintainability** | ❌ Hard to find code | ✅ Clear organization |
+| **Scalability** | ⚠️ Main.py jadi besar | ✅ Easy to add features |
+| **Reusability** | ❌ Hard to reuse | ✅ Services can be called from anywhere |
+| **IDE Navigation** | ❌ Slow | ✅ Fast with clear structure |
+
+---
+
+Apakah Anda setuju dengan struktur ini? Kalau yes, saya akan langsung mulai membuat folder-folder dan refactor file-filenya! 🚀

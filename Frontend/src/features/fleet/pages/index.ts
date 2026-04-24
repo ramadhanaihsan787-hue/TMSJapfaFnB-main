@@ -1,1 +1,1 @@
-﻿export { default as FleetManagementPage } from './FleetManagementPage.tsx'
+﻿export { default as FleetManagementPage } from './FleetManagementPage';

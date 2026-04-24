@@ -1,6 +1,6 @@
 ﻿// drivers feature barrel export
 export * from './pages';
-export * from './components';
-export * from './hooks';
-export * from './types';
-export * from './services';
+export * from './components/index';
+export * from './hooks/index';
+export * from './types/types';
+export * from './services/index';

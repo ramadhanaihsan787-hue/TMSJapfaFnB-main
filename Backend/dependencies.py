@@ -42,13 +42,19 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     
+    # 🚨 PASANG CCTV: Liat token apa yang masuk
+    print(f"🎫 ADA YANG MAU MASUK! TOKEN: {token[:15]}... (dipotong)") 
+
     try:
-        # Pake fungsi decode_token dari core.security biar aman
         payload = decode_token(token)
         username: str = payload.get("sub")
         if username is None:
+            print("❌ DITOLAK: Username (sub) kosong di dalem Payload JWT!")
             raise credential_exception
-    except JWTError:
+            
+    except JWTError as e:
+        # 🚨 INI DIA BIANG KEROKNYA! KITA TANGKEP ERRORNYA!
+        print(f"❌ DITOLAK KARENA JWT ERROR: {str(e)}") 
         raise credential_exception
     
     user = db.query(models.User).filter(
@@ -56,8 +62,10 @@ def get_current_user(
     ).first()
     
     if user is None:
+        print(f"❌ DITOLAK: User '{username}' ngga ketemu di Database!")
         raise credential_exception
     
+    print(f"✅ LOLOS: Selamat datang, {user.username}!")
     return user
 
 

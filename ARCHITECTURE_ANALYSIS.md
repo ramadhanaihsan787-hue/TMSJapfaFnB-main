@@ -954,7 +954,7 @@ Search & replace untuk semua imports:
 
 ```typescript
 // OLD
-import { useApi } from '../hooks/useApi';
+import { useApi } from 'shared/hooks/useApi';
 import { formatDate } from '../utils/formatters';
 import type { Dashboard KPIData } from '../types/dashboard';
 
