@@ -1,5 +1,5 @@
 import React from 'react';
-import { useLoadStore } from '../../store/loadStore';
+import { useLoadStore } from '../../../store/loadStore';
 import {
     Info,
     AlertTriangle,

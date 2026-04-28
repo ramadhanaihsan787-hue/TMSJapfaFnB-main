@@ -1,6 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import Sidebar from '../Sidebar';
-import { useSidebar } from '../../context/SidebarContext';
+import { useSidebar } from '../../../context/SidebarContext';
 
 export default function LogisticsLayout() {
     const { isMobileMenuOpen, toggleMobileMenu, closeMobileMenu } = useSidebar();

@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import ThemeToggle from './ThemeToggle';
 
 export default function Header({ title }: { title: string }) {

@@ -7,7 +7,8 @@ import {
     VrpSettings,
     CostSettings,
     TelematicsSettings,
-    AlertSettings
+    AlertSettings,
+    TeamRolesSettings
 } from '../components';
 
 export default function SettingsPage() {
@@ -65,23 +66,26 @@ export default function SettingsPage() {
                     {activeTab === 'cost' && <CostSettings formData={formData} onChange={handleChange} />}
                     {activeTab === 'telematics' && <TelematicsSettings formData={formData} onChange={handleChange} />}
                     {activeTab === 'alerts' && <AlertSettings formData={formData} onChange={handleChange} />}
+                    {activeTab === 'team' && <TeamRolesSettings />}
                     
-                    {/* 🌟 GLOBAL SAVE BUTTON */}
-                    <div className="mt-8 flex justify-end gap-3 sticky bottom-4">
-                        <button className="px-6 py-2.5 bg-slate-100 dark:bg-[#1A1A1A] hover:bg-slate-200 dark:hover:bg-[#222] text-[#111] dark:text-white rounded-lg text-sm font-bold transition-colors shadow-sm border border-slate-200 dark:border-[#333]">
-                            Discard Changes
-                        </button>
-                        <button 
-                            onClick={handleSave}
-                            disabled={isSaving}
-                            className={`px-6 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-bold shadow-lg shadow-primary/20 transition-all flex items-center gap-2 active:scale-95 ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}
-                        >
-                            <span className="material-symbols-outlined text-sm">{isSaving ? 'sync' : 'save'}</span> 
-                            {isSaving ? 'Saving...' : 'Save Configuration'}
-                        </button>
-                    </div>
-                </div>
-            </div>
+                    {/* 🌟 GLOBAL SAVE BUTTON (Sembunyiin kalau lagi di tab Team Roles) */}
+                    {activeTab !== 'team' && (
+                        <div className="mt-8 flex justify-end gap-3 sticky bottom-4">
+                            <button className="px-6 py-2.5 bg-slate-100 dark:bg-[#1A1A1A] hover:bg-slate-200 dark:hover:bg-[#222] text-[#111] dark:text-white rounded-lg text-sm font-bold transition-colors shadow-sm border border-slate-200 dark:border-[#333]">
+                                Discard Changes
+                            </button>
+                            <button 
+                                onClick={handleSave}
+                                disabled={isSaving}
+                                className={`px-6 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-bold shadow-lg shadow-primary/20 transition-all flex items-center gap-2 active:scale-95 ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}
+                            >
+                                <span className="material-symbols-outlined text-sm">{isSaving ? 'sync' : 'save'}</span> 
+                                {isSaving ? 'Saving...' : 'Save Configuration'}
+                            </button>
+                        </div>
+                    )} 
+                </div> 
+            </div> 
 
             {/* Footer Stats Sub-Bar */}
             <footer className="border-t border-slate-200 dark:border-[#333] bg-white dark:bg-[#111111] px-4 md:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0 hover:bg-slate-50 dark:hover:bg-[#0a0a0a] transition-colors mt-8">

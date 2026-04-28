@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { useLoadStore } from '../../store/loadStore';
+import { useLoadStore } from '../../../store/loadStore';
 import { AlertTriangle, Weight } from 'lucide-react';
 
 export const CapacityProgressBar: React.FC = () => {

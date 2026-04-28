@@ -10,7 +10,8 @@ export default function SettingsTabs({ activeTab, setActiveTab }: SettingsTabsPr
         { id: 'vrp', label: 'VRP & Routing Engine', icon: 'route' },
         { id: 'cost', label: 'Cost & Operations', icon: 'payments' },
         { id: 'telematics', label: 'Telematics & IoT', icon: 'sensors' },
-        { id: 'alerts', label: 'Alerts & Notifications', icon: 'notifications_active' }
+        { id: 'alerts', label: 'Alerts & Notifications', icon: 'notifications_active' },
+        { id: 'team', label: 'Team Roles', icon: 'group' } 
     ];
 
     return (

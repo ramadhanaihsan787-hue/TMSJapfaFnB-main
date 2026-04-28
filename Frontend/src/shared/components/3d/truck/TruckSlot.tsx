@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Text, Edges, Sphere } from '@react-three/drei';
-import { useLoadStore } from '../../store/loadStore';
+import { useLoadStore } from '../../../../store/loadStore';
 
 interface TruckSlotProps {
     position: [number, number, number];

@@ -1,6 +1,6 @@
 // src/features/settings/types.ts
 
-export type SettingsTabId = 'vrp' | 'cost' | 'telematics' | 'alerts';
+export type SettingsTabId = 'vrp' | 'cost' | 'telematics' | 'alerts' | 'team';
 
 export interface SettingsFormData {
     vrp_start_time: string;

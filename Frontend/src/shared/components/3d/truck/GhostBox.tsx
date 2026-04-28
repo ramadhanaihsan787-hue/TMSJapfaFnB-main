@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Mesh, Box3 } from 'three';
-import { useLoadStore } from '../../store/loadStore';
+import { useLoadStore } from '../../../../store/loadStore';
 
 interface GhostBoxProps {
     detectionMeshes: Mesh[];

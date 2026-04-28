@@ -1,5 +1,5 @@
 import React, { Suspense, useState, useRef } from 'react';
-import { useLoadStore } from '../../store/loadStore';
+import { useLoadStore } from '../../../../store/loadStore';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Environment, ContactShadows, TransformControls } from '@react-three/drei';
 import { useControls } from 'leva';
@@ -7,8 +7,8 @@ import TruckSlot from './TruckSlot';
 import { TruckModel } from './TruckModel';
 import GhostBox from './GhostBox';
 import type { Mesh } from 'three';
-import { CapacityProgressBar } from '../ui/CapacityProgressBar';
-import { SidebarInspector } from '../ui/SidebarInspector';
+import { CapacityProgressBar } from '../../ui/CapacityProgressBar';
+import { SidebarInspector } from '../../ui/SidebarInspector';
 
 const TruckScene: React.FC = () => {
     const { truckCapacityTier, sceneBackground, isDragging, setDragPosition } = useLoadStore();

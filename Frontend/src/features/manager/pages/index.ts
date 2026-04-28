@@ -1,1 +1,1 @@
-﻿export { default as ManagerDashboard } from './ManagerDashboard.tsx'
+﻿export { default as ManagerDashboardPage } from './ManagerDashboardPage';

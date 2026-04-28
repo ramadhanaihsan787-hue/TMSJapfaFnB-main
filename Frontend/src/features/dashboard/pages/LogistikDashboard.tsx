@@ -1,4 +1,4 @@
-import Header from "../../../components/Header"; 
+import Header from "../../../shared/components/Header"; 
 
 // 🌟 IMPORT SEMUA JURUS YANG UDAH KITA PISAHIN
 import { useDashboardData } from "../hooks/useDashboardData";

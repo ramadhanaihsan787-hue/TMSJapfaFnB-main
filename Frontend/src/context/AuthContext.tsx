@@ -63,10 +63,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('token'); // Buang KTP-nya
-    setToken(null);
-    setRole(null);
-    setUser(null);
+    // 1. Cukup buang KTP dari kantong browser
+    localStorage.removeItem('token'); 
+    
+    // 2. JANGAN PAKE setRole(null) ATAU setUser(null) DI SINI BIAR REACT-NYA GA KAGET DAN CRASH!
+
+    // 3. Langsung tendang paksa ke halaman login (ini otomatis nge-reset semua state React)
+    window.location.href = '/login';
   };
 
   return (

@@ -1,44 +1,44 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { SidebarProvider } from './context/SidebarContext';
-import { RoleGuard } from './components/layouts/RoleGuard';
+import { RoleGuard } from './shared/components/layouts/RoleGuard';
+import NotFound from './shared/pages/NotFound';
 
-// Login Page
-import Login from './pages/login/Login';
+// Login & Legal Pages
+import { LoginPage, TermsPage, PrivacyPage } from './features/auth';
 
-// Legal Pages (co-located in Login.tsx)
-import { TermsOfService } from './pages/login/Login';
-import { PrivacyPolicy } from './pages/login/Login';
-
-// 🌟 INI YANG BERUBAH BOS! IMPORT FILE RAKITAN BARU KITA!
+// Admin Logistik Pages
 import LogistikDashboard from './features/dashboard/pages/LogistikDashboard';
-
-// Admin Logistik Pages (Sisanya masih pake yang lama, gapapa biarin aja dulu)
 import LogisticsRoutePlanning from './features/routes/pages/RoutePlanningPage';
 import LogisticsDriverPerformance from './features/drivers/pages/DriverPerformancePage';
 import LogisticsFleetManagement from './features/fleet/pages/FleetManagementPage';
 import LogisticsAnalytics from './features/analytics/pages/AnalyticsPage';
 import LogisticsSettings from './features/settings/pages/SettingsPage';
-import LoadPlanner from './pages/logistik/LoadPlanner';
+import LoadPlanner from './features/loadPlanner/pages/LoadPlannerPage';
 import CustomerData from './features/customers/pages/CustomerDataPage';
-import ManagerLogistik from './pages/manager_logistik/ManagerLogistik';
+import ManagerDashboardPage from './features/manager/pages/ManagerDashboardPage';
 
 // Admin POD Pages
-import PodDashboard from './pages/pod/Dashboard';
-import PodVerifications from './pages/pod/Verifications';
-import PodMonitoring from './pages/pod/Monitoring';
-import PodHistory from './pages/pod/History';
-import PodSettings from './pages/pod/Settings';
+import { 
+  PodLayout, 
+  PodDashboardPage, 
+  VerificationsPage, 
+  MonitoringPage, 
+  HistoryPage, 
+  PodSettingsPage 
+} from './features/pod';
 
 // Driver Pages
-import DriverDashboard from './pages/driver/Dashboard';
-import DriverRouteList from './pages/driver/RouteList';
-import DriverDeliveryDetail from './pages/driver/DeliveryDetail';
-import DriverPodCapture from './pages/driver/PodCapture';
-import DriverTripSummary from './pages/driver/TripSummary';
+import { 
+  DriverappDashboardPage,
+  RouteListPage, 
+  DeliveryDetailPage, 
+  PodCapturePage, 
+  TripSummaryPage 
+} from './features/driver-app';
 
 // Logistics Layout
-import LogisticsLayout from './components/layouts/LogisticsLayout';
+import LogisticsLayout from './shared/components/layouts/LogisticsLayout';
 
 function App() {
   return (
@@ -47,9 +47,9 @@ function App() {
         <SidebarProvider>
           <Routes>
             {/* Public Routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/terms-of-service" element={<TermsOfService />} />
-            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/terms-of-service" element={<TermsPage />} />
+            <Route path="/privacy-policy" element={<PrivacyPage />} />
 
             {/* Root Redirect */}
             <Route path="/" element={<Navigate to="/login" replace />} />
@@ -57,7 +57,6 @@ function App() {
             {/* Admin Logistik Routes */}
             <Route element={<RoleGuard allowedRoles={['admin_distribusi']} />}>
               <Route element={<LogisticsLayout />}>
-                {/* 🌟 INI JUGA BERUBAH: Panggil komponen LogistikDashboard yang baru */}
                 <Route path="/logistik" element={<LogistikDashboard />} />
                 <Route path="/logistik/route-planning" element={<LogisticsRoutePlanning />} />
                 <Route path="/logistik/fleet" element={<LogisticsFleetManagement />} />
@@ -72,32 +71,34 @@ function App() {
             {/* Manager Logistik Routes */}
             <Route element={<RoleGuard allowedRoles={['manager_logistik']} />}>
               <Route element={<LogisticsLayout />}>
-                <Route path="/manager" element={<ManagerLogistik />} />
+                <Route path="/manager" element={<ManagerDashboardPage />} />
               </Route>
             </Route>
 
             {/* Admin POD Routes */}
             <Route element={<RoleGuard allowedRoles={['admin_pod']} />}>
-              <Route path="/pod" element={<PodDashboard />} />
-              <Route path="/pod/verifications" element={<PodVerifications />} />
-              <Route path="/pod/monitoring" element={<PodMonitoring />} />
-              <Route path="/pod/history" element={<PodHistory />} />
-              <Route path="/pod/settings" element={<PodSettings />} />
-              {/* Catch-all for pod routes */}
-              <Route path="/pod/*" element={<Navigate to="/pod" replace />} />
+              <Route element={<PodLayout />}>
+                <Route path="/pod" element={<PodDashboardPage />} />
+                <Route path="/pod/verifications" element={<VerificationsPage />} />
+                <Route path="/pod/monitoring" element={<MonitoringPage />} />
+                <Route path="/pod/history" element={<HistoryPage />} />
+                <Route path="/pod/settings" element={<PodSettingsPage />} />
+              </Route>
             </Route>
 
             {/* Driver Routes (Mobile First) */}
             <Route element={<RoleGuard allowedRoles={['driver']} />}>
-              <Route path="/driver" element={<DriverDashboard />} />
-              <Route path="/driver/routes" element={<DriverRouteList />} />
-              <Route path="/driver/detail" element={<DriverDeliveryDetail />} />
-              <Route path="/driver/pod" element={<DriverPodCapture />} />
-              <Route path="/driver/summary" element={<DriverTripSummary />} />
+              <Route path="/driver" element={<DriverappDashboardPage />} />
+              <Route path="/driver/routes" element={<RouteListPage />} />
+              <Route path="/driver/detail" element={<DeliveryDetailPage />} />
+              <Route path="/driver/pod" element={<PodCapturePage />} />
+              <Route path="/driver/summary" element={<TripSummaryPage />} />
             </Route>
 
-            {/* Catch-all route */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            {/* 🌟 CATCH-ALL ROUTE (TARUH PALING BAWAH!) */}
+            {/* Kalau user iseng ngetik URL ngasal, panggil si 404! */}
+            <Route path="*" element={<NotFound />} />
+            
           </Routes>
         </SidebarProvider>
       </AuthProvider>
