@@ -1,25 +1,42 @@
 import React, { useState } from "react";
 import Header from "../../../shared/components/Header";
-import ActionMenu from "../components/ActionMenu"; // 🌟 Panggil ActionMenu Shared Component!
+import ActionMenu from "../components/ActionMenu";
+import { usePod } from '../hooks/usePod'; // 🌟 Mesin sedot data
 
 export default function HistoryPage() {
     const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
     const [openActionId, setOpenActionId] = useState<number | null>(null);
 
+    // 🌟 Sedot semua data DO
+    const { orders, isLoading, error } = usePod();
+
+    // 🌟 Filter murni untuk data riwayat (Selesai atau Gagal)
+    // Asumsi status lu: 'pod_verified' (Success) atau 'do_failed' (Return)
+    const historyOrders = orders.filter(o => 
+        o.status === 'pod_verified' || o.status === 'do_failed'
+    );
+
+    // Hitung statistik harian (Contoh)
+    const totalDocs = historyOrders.length;
+    const successDocs = historyOrders.filter(o => o.status === 'pod_verified').length;
+    const failedDocs = totalDocs - successDocs;
+    const efficiency = totalDocs === 0 ? 0 : ((successDocs / totalDocs) * 100).toFixed(1);
+
+    // Get today's date format
+    const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
     return (
         <React.Fragment>
-            {/* Header */}
             <Header title="Riwayat & Arsip Dokumen" />
 
-            {/* Filters & Summary Section */}
             <div className="p-8 space-y-6">
-                {/* Toolbar */}
+                {/* Toolbar (Tetep persis desain lu) */}
                 <div className="flex flex-wrap items-center gap-4 bg-white dark:bg-[#1a1a1a] p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 transition-colors">
                     <div className="flex flex-col gap-1 min-w-[200px]">
                         <span className="text-[10px] uppercase font-bold text-slate-400">Periode</span>
                         <div className="flex items-center gap-2 bg-slate-50 dark:bg-[#222] px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors">
                             <span className="material-symbols-outlined text-sm text-slate-500">calendar_today</span>
-                            <span className="text-sm font-medium dark:text-slate-300">1 Aug 2026 - 31 Aug 2026</span>
+                            <span className="text-sm font-medium dark:text-slate-300">Bulan Ini</span>
                         </div>
                     </div>
                     <div className="flex flex-col gap-1 min-w-[150px]">
@@ -45,11 +62,8 @@ export default function HistoryPage() {
                         {isDownloadMenuOpen && (
                             <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#333] rounded-xl shadow-lg z-20 overflow-hidden text-left">
                                 <div className="p-2 flex flex-col gap-1">
-                                    <button className="flex items-center gap-3 p-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#222] hover:text-primary rounded-lg transition-colors active:scale-95 text-left font-medium">
+                                    <button onClick={() => alert('Fitur Export segera hadir!')} className="flex items-center gap-3 p-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#222] hover:text-primary rounded-lg transition-colors active:scale-95 text-left font-medium">
                                         <span className="material-symbols-outlined text-[18px]">summarize</span> Excel (CSV)
-                                    </button>
-                                    <button className="flex items-center gap-3 p-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#222] hover:text-primary rounded-lg transition-colors active:scale-95 text-left font-medium">
-                                        <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span> PDF Report
                                     </button>
                                 </div>
                             </div>
@@ -57,21 +71,24 @@ export default function HistoryPage() {
                     </div>
                 </div>
 
-                {/* Daily Summary Card */}
+                {/* 🌟 Daily Summary Card - SEKARANG LIVE DARI DATA! */}
                 <div className="bg-primary/10 border border-primary/20 p-6 rounded-xl flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <div className="bg-primary w-12 h-12 rounded-full flex items-center justify-center text-white shrink-0">
                             <span className="material-symbols-outlined">fact_check</span>
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Aug 14, 2026</h3>
-                            <p className="text-slate-600 dark:text-slate-300 font-medium">145/150 (96.6%) Documents Verified. <span className="text-red-500">5 Returns</span></p>
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">{today}</h3>
+                            <p className="text-slate-600 dark:text-slate-300 font-medium">
+                                {isLoading ? '...' : `${successDocs}/${totalDocs} Document Riwayat.`} 
+                                {failedDocs > 0 && <span className="text-red-500 ml-1">{failedDocs} Returns</span>}
+                            </p>
                         </div>
                     </div>
                     <div className="flex gap-2 shrink-0">
                         <div className="text-right">
                             <div className="text-xs text-slate-500 uppercase font-bold">Total Efisiensi</div>
-                            <div className="text-2xl font-black text-primary">96.6%</div>
+                            <div className="text-2xl font-black text-primary">{isLoading ? '...' : `${efficiency}%`}</div>
                         </div>
                     </div>
                 </div>
@@ -82,89 +99,64 @@ export default function HistoryPage() {
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 dark:bg-[#222]/80 border-b border-slate-200 dark:border-slate-700">
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">No. Delivery Order</th>
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Nama Toko</th>
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Driver</th>
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Tanggal Selesai</th>
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Aksi</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">No. Delivery Order</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Nama Toko</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Driver</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Berat Barang</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Status</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right whitespace-nowrap">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                                <tr className="hover:bg-slate-50 dark:hover:bg-[#222]/50 transition-colors">
-                                    <td className="px-6 py-4 text-sm font-semibold text-primary">DO-2026-0814-001</td>
-                                    <td className="px-6 py-4 text-sm dark:text-slate-300">Superindo Metro Lampung</td>
-                                    <td className="px-6 py-4 text-sm dark:text-slate-300">Bambang Wijaya</td>
-                                    <td className="px-6 py-4 text-sm dark:text-slate-300">14 Aug 2026 09:12</td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Success</span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <ActionMenu id={1} currentOpenId={openActionId} setOpenId={setOpenActionId} />
-                                    </td>
-                                </tr>
-                                <tr className="hover:bg-slate-50 dark:hover:bg-[#222]/50 transition-colors">
-                                    <td className="px-6 py-4 text-sm font-semibold text-primary">DO-2026-0814-002</td>
-                                    <td className="px-6 py-4 text-sm dark:text-slate-300">Indogrosir Kemayoran</td>
-                                    <td className="px-6 py-4 text-sm dark:text-slate-300">Agus Setiawan</td>
-                                    <td className="px-6 py-4 text-sm dark:text-slate-300">14 Aug 2026 10:45</td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">Failed (Return)</span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <ActionMenu id={2} currentOpenId={openActionId} setOpenId={setOpenActionId} />
-                                    </td>
-                                </tr>
-                                <tr className="hover:bg-slate-50 dark:hover:bg-[#222]/50 transition-colors">
-                                    <td className="px-6 py-4 text-sm font-semibold text-primary">DO-2026-0814-003</td>
-                                    <td className="px-6 py-4 text-sm dark:text-slate-300">Farmer's Market Serpong</td>
-                                    <td className="px-6 py-4 text-sm dark:text-slate-300">Dedi Kurniawan</td>
-                                    <td className="px-6 py-4 text-sm dark:text-slate-300">14 Aug 2026 11:30</td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Success</span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <ActionMenu id={3} currentOpenId={openActionId} setOpenId={setOpenActionId} />
-                                    </td>
-                                </tr>
-                                <tr className="hover:bg-slate-50 dark:hover:bg-[#222]/50 transition-colors">
-                                    <td className="px-6 py-4 text-sm font-semibold text-primary">DO-2026-0814-004</td>
-                                    <td className="px-6 py-4 text-sm dark:text-slate-300">Hypermart Karawaci</td>
-                                    <td className="px-6 py-4 text-sm dark:text-slate-300">Bambang Wijaya</td>
-                                    <td className="px-6 py-4 text-sm dark:text-slate-300">14 Aug 2026 13:05</td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Success</span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <ActionMenu id={4} currentOpenId={openActionId} setOpenId={setOpenActionId} />
-                                    </td>
-                                </tr>
-                                <tr className="hover:bg-slate-50 dark:hover:bg-[#222]/50 transition-colors">
-                                    <td className="px-6 py-4 text-sm font-semibold text-primary">DO-2026-0814-005</td>
-                                    <td className="px-6 py-4 text-sm dark:text-slate-300">Lotte Mart Gandaria</td>
-                                    <td className="px-6 py-4 text-sm dark:text-slate-300">Slamet Riadi</td>
-                                    <td className="px-6 py-4 text-sm dark:text-slate-300">14 Aug 2026 14:40</td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Success</span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <ActionMenu id={5} currentOpenId={openActionId} setOpenId={setOpenActionId} />
-                                    </td>
-                                </tr>
+                                
+                                {isLoading && (
+                                    <tr><td colSpan={6} className="py-8 text-center text-slate-500 font-bold">Menarik arsip data... ⏳</td></tr>
+                                )}
+                                {error && (
+                                    <tr><td colSpan={6} className="py-8 text-center text-red-500 font-bold">🚨 {error}</td></tr>
+                                )}
+                                {!isLoading && !error && historyOrders.length === 0 && (
+                                    <tr><td colSpan={6} className="py-8 text-center text-slate-500 font-medium italic">Belum ada riwayat dokumen yang selesai atau gagal.</td></tr>
+                                )}
+
+                                {/* 🌟 LOOPING DATA RIWAYAT ASLI */}
+                                {!isLoading && !error && historyOrders.map((order, idx) => {
+                                    const isSuccess = order.status === 'pod_verified';
+                                    
+                                    return (
+                                        <tr key={order.order_id} className="hover:bg-slate-50 dark:hover:bg-[#222]/50 transition-colors">
+                                            <td className="px-6 py-4 text-sm font-semibold text-primary whitespace-nowrap">{order.order_id}</td>
+                                            <td className="px-6 py-4 text-sm dark:text-slate-300 min-w-[200px]">{order.customer_name}</td>
+                                            <td className="px-6 py-4 text-sm text-slate-500 italic whitespace-nowrap">Menunggu Supir...</td>
+                                            <td className="px-6 py-4 text-sm dark:text-slate-300 whitespace-nowrap">{order.weight_total} KG</td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                {isSuccess ? (
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Success</span>
+                                                ) : (
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">Failed (Return)</span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-right whitespace-nowrap">
+                                                <ActionMenu 
+                                                    id={idx as any} 
+                                                    currentOpenId={openActionId} 
+                                                    setOpenId={setOpenActionId} 
+                                                    items={[
+                                                        { icon: 'description', label: 'Lihat Arsip e-POD', onClick: () => alert('Buka Arsip: ' + order.order_id) }
+                                                    ]}
+                                                />
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+
                             </tbody>
                         </table>
                     </div>
 
                     {/* Pagination */}
                     <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-[#1a1a1a]">
-                        <span className="text-sm text-slate-500 dark:text-slate-400">Menampilkan 1-10 dari 150 data</span>
-                        <div className="flex items-center gap-2">
-                            <button className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-400 hover:bg-slate-50 dark:hover:bg-[#222] transition-colors"><span className="material-symbols-outlined text-sm">chevron_left</span></button>
-                            <button className="w-8 h-8 bg-primary text-white rounded-lg text-sm font-bold">1</button>
-                            <button className="w-8 h-8 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#222] rounded-lg text-sm font-medium transition-colors">2</button>
-                            <button className="w-8 h-8 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#222] rounded-lg text-sm font-medium transition-colors">3</button>
-                            <button className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-400 hover:bg-slate-50 dark:hover:bg-[#222] transition-colors"><span className="material-symbols-outlined text-sm">chevron_right</span></button>
-                        </div>
+                        <span className="text-sm text-slate-500 dark:text-slate-400">Menampilkan {historyOrders.length} data riwayat</span>
                     </div>
                 </div>
             </div>

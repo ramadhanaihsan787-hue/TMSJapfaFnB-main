@@ -157,5 +157,5 @@ def solve_vrp(distance_matrix, time_matrix, demands,
                 
         return results
     else:
-        print("OR-Tools: GAGAL MENEMUKAN SOLUSI!")
+        print("OR-Tools: GAGAL MENEMUKAN SOLUSI! Coba cek kapasitas atau Time Windows.")
         return None

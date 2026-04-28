@@ -1,11 +1,91 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Header from "../../../shared/components/Header";
 
 export default function PodSettingsPage() {
-    // UI/UX Preferences State
+    // ==========================================
+    // 1. STATE PREFERENSI UI/UX (Disimpan di LocalStorage)
+    // ==========================================
     const [autoAdvance, setAutoAdvance] = useState(false);
     const [dataDensity, setDataDensity] = useState("normal");
     const [soundAlert, setSoundAlert] = useState(true);
+    const [isUiSaving, setIsUiSaving] = useState(false);
+
+    // Ambil data dari localStorage pas pertama kali halaman dibuka
+    useEffect(() => {
+        const savedAutoAdvance = localStorage.getItem('pref_autoAdvance') === 'true';
+        const savedSoundAlert = localStorage.getItem('pref_soundAlert') !== 'false'; // Default true
+        const savedDensity = localStorage.getItem('pref_density') || 'normal';
+
+        setAutoAdvance(savedAutoAdvance);
+        setSoundAlert(savedSoundAlert);
+        setDataDensity(savedDensity);
+    }, []);
+
+    // Fungsi Simpan UI/UX
+    const handleSavePreferences = () => {
+        setIsUiSaving(true);
+        
+        // Simpan ke brankas Browser (LocalStorage)
+        localStorage.setItem('pref_autoAdvance', String(autoAdvance));
+        localStorage.setItem('pref_soundAlert', String(soundAlert));
+        localStorage.setItem('pref_density', dataDensity);
+
+        // 🔥 MAGIC TRICK: Ubah atribut global HTML biar CSS seluruh web lu bisa ngikutin ukuran!
+        document.documentElement.setAttribute('data-density', dataDensity);
+
+        setTimeout(() => {
+            setIsUiSaving(false);
+            alert("Pengaturan Tampilan & Interaksi berhasil disimpan! 🚀");
+        }, 800);
+    };
+
+    // ==========================================
+    // 2. STATE AKUN (Password & Foto Profil)
+    // ==========================================
+    const [currentPassword, setCurrentPassword] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [isPasswordSaving, setIsPasswordSaving] = useState(false);
+    const [passwordMsg, setPasswordMsg] = useState({ text: "", type: "" });
+
+    // Referensi buat tombol upload file tersembunyi
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [profilePic, setProfilePic] = useState<string | null>(null);
+
+    const handlePasswordSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setPasswordMsg({ text: "", type: "" });
+
+        if (newPassword !== confirmPassword) {
+            setPasswordMsg({ text: "Password baru dan konfirmasi tidak cocok!", type: "error" });
+            return;
+        }
+        if (newPassword.length < 6) {
+            setPasswordMsg({ text: "Password baru minimal 6 karakter!", type: "error" });
+            return;
+        }
+
+        setIsPasswordSaving(true);
+        // SIMULASI NEMBAK API BACKEND
+        setTimeout(() => {
+            setIsPasswordSaving(false);
+            setCurrentPassword("");
+            setNewPassword("");
+            setConfirmPassword("");
+            setPasswordMsg({ text: "Password berhasil diperbarui!", type: "success" });
+        }, 1500);
+    };
+
+    // Fungsi nangkep file gambar yang diupload
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            // Ubah gambar jadi URL sementara biar bisa ditampilin di layar
+            const imageUrl = URL.createObjectURL(file);
+            setProfilePic(imageUrl);
+            // Nanti di sini lu bisa panggil API buat ngirim 'file' ke backend (Supabase/S3/dll)
+        }
+    };
 
     return (
         <React.Fragment>
@@ -13,7 +93,9 @@ export default function PodSettingsPage() {
 
             <div className="p-8 max-w-5xl mx-auto w-full space-y-8">
                 
-                {/* Account Preferences Section */}
+                {/* ========================================== */}
+                {/* ACCOUNT PREFERENCES SECTION */}
+                {/* ========================================== */}
                 <section className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
                     <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#222]/50">
                         <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -26,48 +108,72 @@ export default function PodSettingsPage() {
                     <div className="p-6 space-y-6">
                         {/* Profile Picture */}
                         <div className="flex items-start gap-6">
-                            <div className="w-24 h-24 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center overflow-hidden border-4 border-white dark:border-[#222] shadow-sm shrink-0">
-                                <span className="material-symbols-outlined text-4xl text-slate-400">person</span>
+                            <div className="w-24 h-24 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center overflow-hidden border-4 border-white dark:border-[#222] shadow-sm shrink-0 relative group">
+                                {profilePic ? (
+                                    <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
+                                ) : (
+                                    <span className="material-symbols-outlined text-4xl text-slate-400">person</span>
+                                )}
                             </div>
                             <div className="flex-1 space-y-3">
                                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">Foto Profil</h3>
-                                <p className="text-sm text-slate-500 dark:text-slate-400">Unggah foto baru untuk mengubah avatar Anda.</p>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">Unggah foto baru untuk mengubah avatar Anda. (Maks 2MB)</p>
                                 <div className="flex gap-3">
-                                    <button className="px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 transition-colors shadow-sm">Ubah Foto</button>
-                                    <button className="px-4 py-2 bg-white dark:bg-[#222] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors shadow-sm">Hapus</button>
+                                    {/* Tombol File Input Tersembunyi */}
+                                    <input 
+                                        type="file" 
+                                        ref={fileInputRef} 
+                                        className="hidden" 
+                                        accept="image/png, image/jpeg" 
+                                        onChange={handleFileChange} 
+                                    />
+                                    <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 transition-colors shadow-sm active:scale-95">
+                                        Ubah Foto
+                                    </button>
+                                    <button onClick={() => setProfilePic(null)} className="px-4 py-2 bg-white dark:bg-[#222] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-[#333] transition-colors shadow-sm active:scale-95">
+                                        Hapus
+                                    </button>
                                 </div>
                             </div>
                         </div>
 
                         <hr className="border-slate-200 dark:border-slate-800" />
 
-                        {/* Change Password */}
-                        <div className="space-y-4 max-w-md">
+                        {/* Change Password Form */}
+                        <form onSubmit={handlePasswordSubmit} className="space-y-4 max-w-md">
                             <h3 className="text-sm font-bold text-slate-900 dark:text-white">Ubah Password</h3>
                             
+                            {passwordMsg.text && (
+                                <div className={`p-3 text-sm font-bold rounded-lg ${passwordMsg.type === 'error' ? 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400' : 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400'}`}>
+                                    {passwordMsg.text}
+                                </div>
+                            )}
+
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase">Password Saat Ini</label>
-                                <input type="password" placeholder="••••••••" className="w-full px-4 py-2 bg-slate-50 dark:bg-[#222] border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary outline-none transition-colors dark:text-white" />
+                                <input required type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="••••••••" className="w-full px-4 py-2 bg-slate-50 dark:bg-[#222] border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary outline-none transition-colors dark:text-white" />
                             </div>
                             
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase">Password Baru</label>
-                                <input type="password" placeholder="••••••••" className="w-full px-4 py-2 bg-slate-50 dark:bg-[#222] border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary outline-none transition-colors dark:text-white" />
+                                <input required type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="••••••••" className="w-full px-4 py-2 bg-slate-50 dark:bg-[#222] border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary outline-none transition-colors dark:text-white" />
                             </div>
                             
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase">Konfirmasi Password Baru</label>
-                                <input type="password" placeholder="••••••••" className="w-full px-4 py-2 bg-slate-50 dark:bg-[#222] border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary outline-none transition-colors dark:text-white" />
+                                <input required type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" className="w-full px-4 py-2 bg-slate-50 dark:bg-[#222] border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary outline-none transition-colors dark:text-white" />
                             </div>
 
-                            <button className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 transition-colors shadow-sm mt-2">
-                                Simpan Password
+                            <button type="submit" disabled={isPasswordSaving} className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 transition-colors shadow-sm mt-2 disabled:opacity-70 active:scale-95">
+                                {isPasswordSaving ? 'Menyimpan...' : 'Simpan Password'}
                             </button>
-                        </div>
+                        </form>
                     </div>
                 </section>
 
-                {/* UI/UX Preferences Section */}
+                {/* ========================================== */}
+                {/* UI/UX PREFERENCES SECTION */}
+                {/* ========================================== */}
                 <section className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
                     <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#222]/50">
                         <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -91,12 +197,7 @@ export default function PodSettingsPage() {
                                 </p>
                             </div>
                             <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                                <input 
-                                    type="checkbox" 
-                                    className="sr-only peer" 
-                                    checked={autoAdvance}
-                                    onChange={(e) => setAutoAdvance(e.target.checked)}
-                                />
+                                <input type="checkbox" className="sr-only peer" checked={autoAdvance} onChange={(e) => setAutoAdvance(e.target.checked)} />
                                 <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-primary"></div>
                             </label>
                         </div>
@@ -115,12 +216,7 @@ export default function PodSettingsPage() {
                                 </p>
                             </div>
                             <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                                <input 
-                                    type="checkbox" 
-                                    className="sr-only peer" 
-                                    checked={soundAlert}
-                                    onChange={(e) => setSoundAlert(e.target.checked)}
-                                />
+                                <input type="checkbox" className="sr-only peer" checked={soundAlert} onChange={(e) => setSoundAlert(e.target.checked)} />
                                 <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-primary"></div>
                             </label>
                         </div>
@@ -174,10 +270,12 @@ export default function PodSettingsPage() {
                     </div>
                     
                     <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#222]/50 flex justify-end gap-3">
-                        <button className="px-6 py-2 bg-white dark:bg-[#222] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors shadow-sm">Batal</button>
-                        <button className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-2">
+                        <button className="px-6 py-2 bg-white dark:bg-[#222] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-[#333] transition-colors shadow-sm active:scale-95">
+                            Batal
+                        </button>
+                        <button onClick={handleSavePreferences} disabled={isUiSaving} className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-70 active:scale-95">
                             <span className="material-symbols-outlined text-sm">save</span>
-                            Simpan Pengaturan UI
+                            {isUiSaving ? 'Menyimpan...' : 'Simpan Pengaturan UI'}
                         </button>
                     </div>
                 </section>

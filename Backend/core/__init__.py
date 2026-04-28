@@ -1,15 +1,9 @@
 """
 Core module - Configuration, Security, and Constants
 """
-from .config import (
-    DATABASE_URL,
-    SECRET_KEY,
-    ALGORITHM,
-    ACCESS_TOKEN_EXPIRE_MINUTES,
-    APP_NAME,
-    APP_VERSION,
-    DEBUG,
-)
+# 🌟 UBAH: Cuma panggil 'settings', sisanya dibuang biar Pydantic yang urus!
+from .config import settings
+
 from .security import (
     pwd_context,
     verify_password,
@@ -21,13 +15,7 @@ from .enums import UserRole, DOStatus
 
 __all__ = [
     # Config
-    "DATABASE_URL",
-    "SECRET_KEY",
-    "ALGORITHM",
-    "ACCESS_TOKEN_EXPIRE_MINUTES",
-    "APP_NAME",
-    "APP_VERSION",
-    "DEBUG",
+    "settings", # 🌟 Masukin 'settings' ke sini
     # Security
     "pwd_context",
     "verify_password",

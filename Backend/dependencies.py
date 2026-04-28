@@ -8,8 +8,7 @@ from sqlalchemy.orm import Session
 
 from database import SessionLocal
 from core.security import decode_token
-from core.config import SECRET_KEY, ALGORITHM
-import models
+import models # 🌟 Baris import core.config DIBUANG KARENA NGGA DIPAKE!
 
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")

@@ -1,14 +1,14 @@
 import React from 'react';
 import Header from "../../../shared/components/Header";
-// Asumsi kalau lu mau pake KpiCard, tapi di sini CTO balikin persis kaya kodingan lu
-// (Kalau mau pake KpiCard, nanti gampang tinggal ganti div-nya)
+import { usePod } from '../hooks/usePod'; 
 
 export default function PodDashboardPage() {
+    const { orders, isLoading, error } = usePod();
+
     return (
         <React.Fragment>
             <Header title="Daily POD Verification Dashboard" />
 
-            {/* Content Body */}
             <div className="p-8 flex flex-col gap-8">
                 {/* KPI Cards Row */}
                 <div className="grid grid-cols-4 gap-6">
@@ -20,7 +20,9 @@ export default function PodDashboardPage() {
                             </div>
                         </div>
                         <div className="flex items-baseline gap-2">
-                            <h3 className="text-3xl font-bold text-slate-900 dark:text-white">142</h3>
+                            <h3 className="text-3xl font-bold text-slate-900 dark:text-white">
+                                {isLoading ? '...' : orders.length}
+                            </h3>
                             <span className="text-slate-400 text-sm font-bold flex items-center">
                                 Queue
                             </span>
@@ -91,36 +93,61 @@ export default function PodDashboardPage() {
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="border-b border-slate-200 dark:border-slate-800 text-sm text-slate-500 dark:text-slate-400">
-                                        <th className="pb-3 font-semibold">Resi Number</th>
-                                        <th className="pb-3 font-semibold">Driver</th>
-                                        <th className="pb-3 font-semibold">Time Uploaded</th>
-                                        <th className="pb-3 font-semibold">Flag Reason</th>
-                                        <th className="pb-3 font-semibold text-right">Action</th>
+                                        <th className="pb-3 font-semibold whitespace-nowrap">Resi Number</th>
+                                        {/* 🌟 TAMBAH: Kolom Customer dan Berat */}
+                                        <th className="pb-3 font-semibold whitespace-nowrap">Customer / Toko</th>
+                                        <th className="pb-3 font-semibold whitespace-nowrap">Berat</th>
+                                        
+                                        <th className="pb-3 font-semibold whitespace-nowrap">Driver</th>
+                                        <th className="pb-3 font-semibold whitespace-nowrap">Time Uploaded</th>
+                                        <th className="pb-3 font-semibold whitespace-nowrap">Status</th>
+                                        <th className="pb-3 font-semibold text-right whitespace-nowrap">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="text-sm divide-y divide-slate-100 dark:divide-slate-800">
-                                    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                        <td className="py-4 font-bold text-primary">JPF-2403-8891</td>
-                                        <td className="py-4">Eko Prasetyo</td>
-                                        <td className="py-4">10 mins ago</td>
-                                        <td className="py-4">
-                                            <span className="px-2 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400 rounded text-xs font-bold">Image Blurry</span>
-                                        </td>
-                                        <td className="py-4 text-right">
-                                            <button className="text-primary hover:text-primary/80 font-semibold px-3 py-1 border border-primary/20 rounded-md">Review</button>
-                                        </td>
-                                    </tr>
-                                    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                        <td className="py-4 font-bold text-primary">JPF-2403-8895</td>
-                                        <td className="py-4">Budi Santoso</td>
-                                        <td className="py-4">15 mins ago</td>
-                                        <td className="py-4">
-                                            <span className="px-2 py-1 bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400 rounded text-xs font-bold">GPS Mismatch</span>
-                                        </td>
-                                        <td className="py-4 text-right">
-                                            <button className="text-primary hover:text-primary/80 font-semibold px-3 py-1 border border-primary/20 rounded-md">Review</button>
-                                        </td>
-                                    </tr>
+                                    
+                                    {/* 🌟 Colspan diubah jadi 7 karena kolomnya nambah */}
+                                    {isLoading && (
+                                        <tr><td colSpan={7} className="py-8 text-center text-slate-500 font-bold">Menyedot data dari server... ⏳</td></tr>
+                                    )}
+
+                                    {error && (
+                                        <tr><td colSpan={7} className="py-8 text-center text-red-500 font-bold">🚨 {error}</td></tr>
+                                    )}
+
+                                    {!isLoading && !error && orders.length === 0 && (
+                                        <tr><td colSpan={7} className="py-8 text-center text-slate-500 font-bold">🎉 Hore! Antrean kosong, gaada kerjaan!</td></tr>
+                                    )}
+
+                                    {!isLoading && !error && orders.map((order) => (
+                                        <tr key={order.order_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                            <td className="py-4 font-bold text-primary whitespace-nowrap">{order.order_id}</td>
+                                            
+                                            {/* 🌟 TAMBAH: Data Customer dan Berat dengan min-width biar proporsional */}
+                                            <td className="py-4 min-w-[200px] font-medium">{order.customer_name}</td>
+                                            <td className="py-4 whitespace-nowrap text-slate-600 dark:text-slate-300">{order.weight_total} KG</td>
+                                            
+                                            <td className="py-4 text-slate-500 italic whitespace-nowrap">Menunggu Supir...</td>
+                                            <td className="py-4 text-slate-500 whitespace-nowrap">-</td>
+                                            
+                                            <td className="py-4 whitespace-nowrap">
+                                                <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                                    order.status === 'do_verified' 
+                                                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400' 
+                                                    : 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400'
+                                                }`}>
+                                                    {order.status.replace('_', ' ').toUpperCase()}
+                                                </span>
+                                            </td>
+                                            
+                                            <td className="py-4 text-right whitespace-nowrap">
+                                                <button className="text-primary hover:text-primary/80 font-semibold px-3 py-1 border border-primary/20 rounded-md transition-colors">
+                                                    Review
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+
                                 </tbody>
                             </table>
                         </div>

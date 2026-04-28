@@ -1,23 +1,39 @@
 import React, { useState } from "react";
 import Header from "../../../shared/components/Header";
 import ActionMenu from "../components/ActionMenu";
+import { usePod } from '../hooks/usePod'; // 🌟 1. Panggil mesin penyedot data
 
 export default function MonitoringPage() {
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [openActionId, setOpenActionId] = useState<number | null>(null);
+    
+    // 🌟 2. State buat buka-tutup detail truk (Biar fiturnya beneran idup!)
+    const [isExpanded, setIsExpanded] = useState(true);
+
+    // 🌟 3. Ekstrak data dari backend
+    const { orders, isLoading, error } = usePod();
+
+    // 🌟 4. Kalkulasi KPI Dinamis
+    const totalTarget = orders.length;
+    // Asumsi: do_verified itu udah divalidasi sistem, kalau ada status lain bisa disesuaikan
+    const verifiedCount = orders.filter(o => o.status === 'do_verified').length; 
+    const waitingCount = totalTarget - verifiedCount;
+    const progressPercentage = totalTarget === 0 ? 0 : Math.round((verifiedCount / totalTarget) * 100);
 
     return (
         <React.Fragment>
             <Header title="Monitoring Harian" />
 
             <div className="p-8 space-y-8">
-                {/* KPI Bar */}
+                {/* ========================================== */}
+                {/* KPI BAR - SEKARANG HIDUP DARI DATABASE! */}
+                {/* ========================================== */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="bg-white dark:bg-[#1a1a1a] p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
                         <div className="flex justify-between items-start">
                             <div>
                                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Target</p>
-                                <p className="text-3xl font-bold mt-1">150</p>
+                                <p className="text-3xl font-bold mt-1">{isLoading ? '...' : totalTarget}</p>
                             </div>
                             <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-300">
                                 <span className="material-symbols-outlined">assignment</span>
@@ -25,11 +41,15 @@ export default function MonitoringPage() {
                         </div>
                         <p className="text-xs text-slate-400 mt-4">Dokumen POD hari ini</p>
                     </div>
+
                     <div className="bg-white dark:bg-[#1a1a1a] p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
                         <div className="flex justify-between items-start">
                             <div>
                                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400">POD Progress</p>
-                                <p className="text-3xl font-bold mt-1">120<span className="text-sm font-normal text-slate-400">/150</span></p>
+                                <p className="text-3xl font-bold mt-1">
+                                    {isLoading ? '...' : verifiedCount}
+                                    <span className="text-sm font-normal text-slate-400">/{totalTarget}</span>
+                                </p>
                             </div>
                             <div className="p-2 bg-primary/10 rounded-lg text-primary">
                                 <span className="material-symbols-outlined">trending_up</span>
@@ -37,16 +57,17 @@ export default function MonitoringPage() {
                         </div>
                         <div className="mt-4">
                             <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                                <div className="bg-primary h-full" style={{ width: "80%" }}></div>
+                                <div className="bg-primary h-full transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div>
                             </div>
-                            <p className="text-xs text-primary font-semibold mt-2">80% Tercapai</p>
+                            <p className="text-xs text-primary font-semibold mt-2">{progressPercentage}% Tercapai</p>
                         </div>
                     </div>
+
                     <div className="bg-white dark:bg-[#1a1a1a] p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
                         <div className="flex justify-between items-start">
                             <div>
                                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Waiting for Driver</p>
-                                <p className="text-3xl font-bold mt-1">18</p>
+                                <p className="text-3xl font-bold mt-1">{isLoading ? '...' : waitingCount}</p>
                             </div>
                             <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg text-amber-600">
                                 <span className="material-symbols-outlined">pending_actions</span>
@@ -54,11 +75,12 @@ export default function MonitoringPage() {
                         </div>
                         <p className="text-xs text-amber-600 font-medium mt-4">Menunggu upload berkas</p>
                     </div>
+
                     <div className="bg-white dark:bg-[#1a1a1a] p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
                         <div className="flex justify-between items-start">
                             <div>
                                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Verified</p>
-                                <p className="text-3xl font-bold mt-1">102</p>
+                                <p className="text-3xl font-bold mt-1">{isLoading ? '...' : verifiedCount}</p>
                             </div>
                             <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg text-emerald-600">
                                 <span className="material-symbols-outlined">verified</span>
@@ -68,8 +90,11 @@ export default function MonitoringPage() {
                     </div>
                 </div>
 
-                {/* Table Section */}
+                {/* ========================================== */}
+                {/* TABLE SECTION */}
+                {/* ========================================== */}
                 <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
+                    {/* Header Tabel (Tidak ada yang diubah) */}
                     <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-[#1a1a1a]">
                         <h3 className="font-bold text-lg dark:text-white">Tabel Pemantauan Truk</h3>
                         <div className="flex items-center gap-2">
@@ -102,6 +127,7 @@ export default function MonitoringPage() {
                             </div>
                         </div>
                     </div>
+
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                             <thead className="bg-slate-50 dark:bg-[#222] text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
@@ -114,136 +140,132 @@ export default function MonitoringPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                                {/* Expanded Truck Group */}
-                                <tr className="bg-slate-50/50 dark:bg-[#222]/50">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <span className="material-symbols-outlined text-slate-400">expand_more</span>
-                                            <div>
-                                                <p className="font-bold text-slate-900 dark:text-slate-100">B 9044 JXS</p>
-                                                <p className="text-xs text-slate-500">Mulyadi - 0812-XXXX-XXXX</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm dark:text-slate-300">Jakarta - Bandung - Solo</td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-24 bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
-                                                <div className="bg-emerald-500 h-full" style={{ width: "80%" }}></div>
-                                            </div>
-                                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">8/10</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                                            Waiting Admin
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        {/* 🌟 PANGGIL ACTION MENU KHUSUS TRUK! */}
-                                        <ActionMenu 
-                                            id={1} 
-                                            currentOpenId={openActionId} 
-                                            setOpenId={setOpenActionId} 
-                                            items={[
-                                                { icon: 'visibility', label: 'Detail Truk', onClick: () => alert('Detail Truk') },
-                                                { icon: 'call', label: 'Hubungi Driver', onClick: () => alert('Halo Driver') }
-                                            ]}
-                                        />
-                                    </td>
-                                </tr>
-                                {/* Stop Details Row */}
-                                <tr className="bg-white dark:bg-[#1a1a1a] border-l-4 border-primary">
-                                    <td className="px-6 py-0" colSpan={5}>
-                                        <div className="pl-12 py-6 space-y-4">
-                                            <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Detail Stop & Dokumen</p>
-                                            <div className="grid grid-cols-1 gap-3">
-                                                {/* Stop Item 1 */}
-                                                <div className="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-[#222]/30">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-8 h-8 rounded bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600">
-                                                            <span className="material-symbols-outlined text-lg">check_circle</span>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm font-bold dark:text-slate-200">Stop 01 - Jakarta Warehouse</p>
-                                                            <p className="text-xs text-slate-500">DO-90334211 • 14:20 WIB</p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-6">
-                                                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">Verified</span>
-                                                        {/* 🌟 ACTION MENU KHUSUS DOKUMEN! */}
-                                                        <ActionMenu 
-                                                            id={101} 
-                                                            currentOpenId={openActionId} 
-                                                            setOpenId={setOpenActionId} 
-                                                            items={[
-                                                                { icon: 'description', label: 'View Document', onClick: () => alert('View Document') }
-                                                            ]}
-                                                        />
+                                
+                                {/* Handling State */}
+                                {isLoading && (
+                                    <tr><td colSpan={5} className="py-8 text-center text-slate-500 font-bold">Memuat data monitoring... ⏳</td></tr>
+                                )}
+                                {error && (
+                                    <tr><td colSpan={5} className="py-8 text-center text-red-500 font-bold">🚨 Gagal memuat data</td></tr>
+                                )}
+
+                                {/* 🌟 PARENT ROW: TRUK VIRTUAL (Karena VRP Belum Jalan) */}
+                                {!isLoading && !error && orders.length > 0 && (
+                                    <React.Fragment>
+                                        <tr className="bg-slate-50/50 dark:bg-[#222]/50 hover:bg-slate-100 dark:hover:bg-[#333] transition-colors cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="material-symbols-outlined text-slate-400 transition-transform" style={{ transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}>
+                                                        expand_more
+                                                    </span>
+                                                    <div>
+                                                        <p className="font-bold text-slate-900 dark:text-slate-100">BELUM DIALOKASIKAN</p>
+                                                        <p className="text-xs text-slate-500">Menunggu Hasil Routing VRP</p>
                                                     </div>
                                                 </div>
-                                                {/* Stop Item 2 */}
-                                                <div className="flex items-center justify-between p-3 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-900/10">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-8 h-8 rounded bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600">
-                                                            <span className="material-symbols-outlined text-lg">hourglass_empty</span>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm font-bold dark:text-slate-200">Stop 02 - Bogor Retailer</p>
-                                                            <p className="text-xs text-slate-500">DO-90334215 • 16:45 WIB</p>
-                                                        </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm dark:text-slate-300 italic text-slate-500">Multi-drop (Auto)</td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-24 bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                                                        <div className="bg-primary h-full" style={{ width: "0%" }}></div>
                                                     </div>
-                                                    <div className="flex items-center gap-6">
-                                                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">Waiting Admin</span>
-                                                        <button onClick={() => alert("Feature coming soon!")} className="px-3 py-1 bg-primary text-white text-[10px] font-bold rounded-lg hover:bg-primary/90 transition-colors cursor-pointer active:scale-95">Verify Now</button>
-                                                    </div>
+                                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">0/{orders.length}</span>
                                                 </div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {/* Next Truck Row */}
-                                <tr className="hover:bg-slate-50 dark:hover:bg-[#222]/50 transition-colors bg-white dark:bg-[#1a1a1a]">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <span className="material-symbols-outlined text-slate-400">chevron_right</span>
-                                            <div>
-                                                <p className="font-bold text-slate-900 dark:text-slate-100">B 1102 KKM</p>
-                                                <p className="text-xs text-slate-500">Rendi - 0821-XXXX-XXXX</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm dark:text-slate-300">Semarang - Solo</td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-24 bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
-                                                <div className="bg-primary h-full" style={{ width: "40%" }}></div>
-                                            </div>
-                                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">4/10</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                                            In Transit
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button onClick={() => alert("Action triggered: Detail Truk")} className="text-primary hover:underline text-xs font-bold active:scale-95 transition-all">Detail Truk</button>
-                                    </td>
-                                </tr>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                                    Menunggu VRP
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                {/* Stop propagation biar klik tombol ngga nge-trigger expand baris */}
+                                                <div onClick={(e) => e.stopPropagation()}>
+                                                    <ActionMenu 
+                                                        id={999} 
+                                                        currentOpenId={openActionId} 
+                                                        setOpenId={setOpenActionId} 
+                                                        items={[
+                                                            { icon: 'route', label: 'Jalankan VRP Engine', onClick: () => alert('Fitur VRP segera hadir!') }
+                                                        ]}
+                                                    />
+                                                </div>
+                                            </td>
+                                        </tr>
+
+                                        {/* 🌟 CHILD ROWS: LOOPING DATA DO SEBAGAI STOPS */}
+                                        {isExpanded && (
+                                            <tr className="bg-white dark:bg-[#1a1a1a] border-l-4 border-primary">
+                                                <td className="px-6 py-0" colSpan={5}>
+                                                    <div className="pl-12 py-6 space-y-4">
+                                                        <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Detail Stop & Dokumen ({orders.length} Titik)</p>
+                                                        <div className="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                                                            
+                                                            {orders.map((order, index) => {
+                                                                // Penentuan style berdasarkan status (disesuaikan dengan style asli lu)
+                                                                const isVerified = order.status === 'do_verified' || order.status === 'pod_verified';
+                                                                const boxStyle = isVerified 
+                                                                    ? "border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-900/10" 
+                                                                    : "border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-900/10";
+                                                                const iconColor = isVerified ? "text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30" : "text-amber-600 bg-amber-100 dark:bg-amber-900/30";
+                                                                const iconName = isVerified ? "check_circle" : "hourglass_empty";
+                                                                const badgeStyle = isVerified 
+                                                                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+                                                                    : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400";
+                                                                const badgeText = isVerified ? "Verified" : "Waiting Admin";
+
+                                                                return (
+                                                                    <div key={order.order_id} className={`flex items-center justify-between p-3 rounded-lg border ${boxStyle}`}>
+                                                                        <div className="flex items-center gap-4">
+                                                                            <div className={`w-8 h-8 rounded flex items-center justify-center ${iconColor}`}>
+                                                                                <span className="material-symbols-outlined text-lg">{iconName}</span>
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className="text-sm font-bold dark:text-slate-200">Stop {(index + 1).toString().padStart(2, '0')} - {order.customer_name}</p>
+                                                                                <p className="text-xs text-slate-500">{order.order_id} • Berat: {order.weight_total} KG</p>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-6">
+                                                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${badgeStyle}`}>{badgeText}</span>
+                                                                            
+                                                                            {!isVerified ? (
+                                                                                <button onClick={() => alert("Menuju halaman verifikasi...")} className="px-3 py-1 bg-primary text-white text-[10px] font-bold rounded-lg hover:bg-primary/90 transition-colors cursor-pointer active:scale-95">Verify Now</button>
+                                                                            ) : (
+                                                                                <ActionMenu 
+                                                                                    id={`doc-${order.order_id}` as any} 
+                                                                                    currentOpenId={openActionId} 
+                                                                                    setOpenId={setOpenActionId} 
+                                                                                    items={[
+                                                                                        { icon: 'description', label: 'View Document', onClick: () => alert('Lihat Dokumen: ' + order.order_id) }
+                                                                                    ]}
+                                                                                />
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </React.Fragment>
+                                )}
+
                             </tbody>
                         </table>
                     </div>
+                    
+                    {/* Footer / Pagination */}
                     <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-[#1a1a1a]">
-                        <p className="text-sm text-slate-500 italic">Menampilkan 1-10 dari 45 armada</p>
+                        <p className="text-sm text-slate-500 italic">Menampilkan {orders.length > 0 ? 1 : 0}-{orders.length} DO yang belum dialokasikan</p>
                         <div className="flex items-center gap-1">
+                            {/* Tombol statis tetep dipertahanin sesuai desain lu */}
                             <button className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-[#222] rounded-lg transition-colors"><span className="material-symbols-outlined">first_page</span></button>
                             <button className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-[#222] rounded-lg transition-colors"><span className="material-symbols-outlined">chevron_left</span></button>
                             <button className="w-8 h-8 flex items-center justify-center bg-primary text-white rounded font-bold text-xs">1</button>
-                            <button className="w-8 h-8 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#222] rounded text-xs transition-colors">2</button>
-                            <button className="w-8 h-8 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#222] rounded text-xs transition-colors">3</button>
                             <button className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-[#222] rounded-lg transition-colors"><span className="material-symbols-outlined">chevron_right</span></button>
                             <button className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-[#222] rounded-lg transition-colors"><span className="material-symbols-outlined">last_page</span></button>
                         </div>

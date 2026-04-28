@@ -1,46 +1,49 @@
 """
-Configuration module - Load settings from environment variables
+Configuration module - Secure Settings with Pydantic
 """
-from dotenv import load_dotenv
 import os
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-load_dotenv()
+class Settings(BaseSettings):
+    # ==========================================
+    # DATABASE CONFIGURATION
+    # ==========================================
+    # Tidak ada fallback bahaya! Kalau di .env kosong, server nolak nyala!
+    DATABASE_URL: str
 
-# ==========================================
-# DATABASE CONFIGURATION
-# ==========================================
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:captainzhyper@localhost:5432/tms_japfa"
-)
+    # ==========================================
+    # SECURITY & JWT CONFIGURATION
+    # ==========================================
+    SECRET_KEY: str
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440 # Otomatis diconvert ke integer sama Pydantic
 
-# ==========================================
-# SECURITY & JWT CONFIGURATION
-# ==========================================
-SECRET_KEY = os.getenv("SECRET_KEY", "fallback_secret_key_ganti_ini")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
+    # ==========================================
+    # APPLICATION CONFIGURATION
+    # ==========================================
+    APP_NAME: str = "TMS JAPFA - AI Engine"
+    APP_VERSION: str = "2.0.0"
+    APP_DESCRIPTION: str = "Transport Management System dengan CVRPTW Optimization"
+    DEBUG: bool = False # Otomatis ngebaca "true"/"false" dari .env jadi boolean
 
-# ==========================================
-# APPLICATION CONFIGURATION
-# ==========================================
-APP_NAME = "TMS JAPFA - AI Engine"
-APP_VERSION = "2.0.0"
-APP_DESCRIPTION = "Transport Management System dengan CVRPTW Optimization"
-DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+    # ==========================================
+    # EXTERNAL API CONFIGURATION
+    # ==========================================
+    TOMTOM_API_KEY: str
 
-# ==========================================
-# EXTERNAL API CONFIGURATION
-# ==========================================
-TOMTOM_API_KEY = os.getenv("TOMTOM_API_KEY", "xUy50YsjmbRexLalxX3ThDpmC1lOzElP")
+    # ==========================================
+    # FILE UPLOAD CONFIGURATION
+    # ==========================================
+    UPLOAD_DIR: str = "uploads"
+    EPOD_DIR: str = "uploads/epod"
+    GEOMETRY_DIR: str = "route_geometries"
 
-# ==========================================
-# FILE UPLOAD CONFIGURATION
-# ==========================================
-UPLOAD_DIR = "uploads"
-EPOD_DIR = os.path.join(UPLOAD_DIR, "epod")
-GEOMETRY_DIR = "route_geometries"
+    # Mesin utama buat ngebaca file .env
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+# Instansiasi setting global
+settings = Settings()
 
 # Create directories if not exist
-os.makedirs(EPOD_DIR, exist_ok=True)
-os.makedirs(GEOMETRY_DIR, exist_ok=True)
+os.makedirs(settings.EPOD_DIR, exist_ok=True)
+os.makedirs(settings.GEOMETRY_DIR, exist_ok=True)

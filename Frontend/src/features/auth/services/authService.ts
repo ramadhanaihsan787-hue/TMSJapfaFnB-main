@@ -1,6 +1,6 @@
-// src/features/auth/services/authService.ts
-import axios from "axios";
-import type { LoginCredentials } from "../types";
+// 🌟 1. Import 'api' yang udah kita racik pake interceptor
+import { api } from '../../../shared/services/apiClient'; 
+import type { LoginCredentials } from '../types';
 
 export const authService = {
     login: async (credentials: LoginCredentials) => {
@@ -8,9 +8,11 @@ export const authService = {
         formData.append('username', credentials.username); 
         formData.append('password', credentials.password); 
 
-        const response = await axios.post('http://127.0.0.1:8000/login', formData, {
+        // 🌟 2. Tembak pake 'api', ngga usah tulis http://localhost lagi karena udah diurus .env
+        const response = await api.post('/login', formData, {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         });
+        
         return response.data;
     }
 };

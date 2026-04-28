@@ -593,48 +593,49 @@ def confirm_routes(
     try:
         today = datetime.datetime.now().date()
 
-        # Hapus rute lama hari ini
+        # 1. Bersihkan rute lama hari ini
         rute_lama = db.query(models.TMSRoutePlan).filter(
             models.TMSRoutePlan.planning_date == today
         ).all()
         for rute in rute_lama:
-            db.query(models.TMSRouteLine).filter(
-                models.TMSRouteLine.route_id == rute.route_id
-            ).delete()
-        db.query(models.TMSRoutePlan).filter(
-            models.TMSRoutePlan.planning_date == today
-        ).delete()
+            db.query(models.TMSRouteLine).filter(models.TMSRouteLine.route_id == rute.route_id).delete()
+        db.query(models.TMSRoutePlan).filter(models.TMSRoutePlan.planning_date == today).delete()
+
+        # 2. Ambil list supir aktif untuk dibagikan ke truk
+        available_drivers = db.query(models.HRDriver).filter(models.HRDriver.status == True).all()
+        if not available_drivers:
+            raise HTTPException(status_code=400, detail="Gagal konfirmasi: Tidak ada supir aktif!")
 
         jadwal = payload.get("jadwal_truk_internal", [])
 
-        for truk in jadwal:
+        for idx, truk in enumerate(jadwal):
+            # Cari kendaraan berdasarkan plat nomor
             vehicle = db.query(models.FleetVehicle).filter(
                 models.FleetVehicle.license_plate == truk.get("armada")
             ).first()
-            if not vehicle:
-                continue
+            
+            if not vehicle: continue
 
-            driver = db.query(models.HRDriver).filter(
-                models.HRDriver.status == True
-            ).first()
+            # 🌟 FIX: Bagi supir berdasarkan urutan truk (Round Robin)
+            # Biar ngga cuma supir pertama yang kerja terus!
+            driver_idx = idx % len(available_drivers)
+            assigned_driver = available_drivers[driver_idx]
 
+            # Simpan Header Rute
             new_plan = models.TMSRoutePlan(
                 route_id=truk["route_id"],
                 planning_date=today,
                 vehicle_id=vehicle.vehicle_id,
-                driver_id=driver.driver_id if driver else 1,
+                driver_id=assigned_driver.driver_id, # 👈 Sekarang supirnya beda-beda!
                 total_weight=truk.get("total_muatan_kg", 0),
                 total_distance_km=truk.get("total_jarak_km", 0)
             )
             db.add(new_plan)
 
+            # Simpan Detail Titik Perjalanan (Route Line)
             for stop in truk.get("detail_perjalanan", []):
-                nomor_do = (stop.get("nomor_do") or
-                           stop.get("order_id") or
-                           stop.get("id"))
-
-                if not nomor_do:
-                    continue
+                nomor_do = (stop.get("nomor_do") or stop.get("order_id") or stop.get("id"))
+                if not nomor_do: continue
 
                 try:
                     h, m = map(int, str(stop["jam_tiba"]).split(":")[:2])
@@ -651,6 +652,7 @@ def confirm_routes(
                 )
                 db.add(new_line)
 
+                # 🌟 UPDATE STATUS DO: Biar supir bisa liat di App
                 order = db.query(models.DeliveryOrder).filter(
                     models.DeliveryOrder.order_id == nomor_do
                 ).first()
@@ -658,12 +660,11 @@ def confirm_routes(
                     order.status = models.DOStatus.do_assigned_to_route
 
         db.commit()
-        return {"message": "Rute berhasil dikunci ke Database!", "status": "success"}
+        return {"message": f"Sukses! {len(jadwal)} rute telah ditugaskan ke supir.", "status": "success"}
 
     except Exception as e:
         db.rollback()
-        print(f"❌ ERROR Confirm Route: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Gagal simpan: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Gagal simpan rute: {str(e)}")
 
 # ==========================================
 # ENDPOINT 4: GET LOAD PLAN (3D)

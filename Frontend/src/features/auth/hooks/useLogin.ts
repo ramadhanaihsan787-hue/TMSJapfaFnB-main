@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom"; // 🌟 PANGGIL BALIK NAVIGATE-NYA!
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
 import { authService } from "../services/authService";
 
 export const useLogin = () => {
-    const navigate = useNavigate(); // 🌟 INISIALISASI NAVIGATE
+    const navigate = useNavigate();
     const { login } = useAuth();
     
+    // email di sini fungsinya sebagai 'username'
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
@@ -18,25 +19,32 @@ export const useLogin = () => {
         setIsLoading(true);
 
         try {
+            // 🌟 1. Tembak API Login kita!
             const data = await authService.login({ username: email, password });
             
-            // 1. Simpen token ke Context secara INSTAN
+            // 🌟 2. Simpen token ke Context (otomatis decode role di dalemnya)
             login(data.access_token); 
 
-            // 2. Pake Navigate biasa biar React ngga usah Refresh Browser!
-            if (email === 'admin_pod') {
+            // 🌟 3. REDIRECT BERDASARKAN ROLE ASLI DARI DATABASE! (Bukan ketikan user)
+            if (data.role === 'admin_pod') {
                 navigate('/pod');
-            } else if (email === 'manager') {
+            } else if (data.role === 'manager_logistik') {
                 navigate('/manager');
-            } else if (email.includes('driver')) {
+            } else if (data.role === 'driver') {
                 navigate('/driver');
-            } else {
+            } else if (data.role === 'admin_distribusi') {
                 navigate('/logistik');
+            } else {
+                navigate('/'); // Kalau rolenya aneh, balikin ke root
             }
 
-        } catch (error) {
-            console.error(error);
-            setErrorMessage('Login gagal! Cek lagi Username atau Password lu.');
+        } catch (error: any) {
+            console.error("Login Error caught:", error);
+            
+            // 🌟 4. TANGKEP PESAN ERROR ASLI DARI FASTAPI
+            // Kalo FastAPI ngirim detail error, kita tampilin itu. Kalo ngga, pake pesan default.
+            const serverErrorMsg = error.response?.data?.detail;
+            setErrorMessage(serverErrorMsg || 'Login gagal! Server tidak merespon atau kredensial salah.');
         } finally {
             setIsLoading(false); 
         }
