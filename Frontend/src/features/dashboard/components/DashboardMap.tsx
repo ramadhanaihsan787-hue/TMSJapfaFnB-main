@@ -1,12 +1,12 @@
 // src/features/dashboard/components/DashboardMap.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import type { LiveTruck } from '../hooks/useDashboardData';
+import { useLiveTrackingStore } from '../../../store/useLiveTrackingStore'; 
 
 // =======================================================================
-// 🌟 STYLING & ICON KUSTOM KHUSUS PETA (Disembunyiin di sini biar rapi)
+// 🌟 STYLING & ICON KUSTOM KHUSUS PETA
 // =======================================================================
 const globalDashboardStyles = `
     @keyframes pulseGlow {
@@ -69,17 +69,26 @@ const MapController = ({ center }: { center: [number, number] | null }) => {
 };
 
 // =======================================================================
-// 🌟 KOMPONEN UTAMA PETA
+// 🌟 KOMPONEN UTAMA PETA (Udah ngga butuh props lagi!)
 // =======================================================================
-interface DashboardMapProps {
-    activeTrucks: LiveTruck[];
-    isLoading: boolean;
-}
-
-export default function DashboardMap({ activeTrucks, isLoading }: DashboardMapProps) {
+export default function DashboardMap() {
+    // 🌟 TARIK DATA DARI ZUSTAND STORE
+    const { trucks, isLoading, startPolling, stopPolling } = useLiveTrackingStore();
+    
     // Koordinat Pusat JAPFA Cikupa
     const gudangLatLon: [number, number] = [-6.207356, 106.479163];
     const [flyToLocation, setFlyToLocation] = useState<[number, number] | null>(null);
+
+    // 🌟 NYALAKAN MESIN AUTO-POLLING PAS KOMPONEN DIBUKA
+    useEffect(() => {
+        // Tarik data tiap 10 detik (10000 ms)
+        startPolling(10000);
+
+        // MATIKAN MESIN PAS PINDAH HALAMAN (Biar laptop ngga jebol)
+        return () => {
+            stopPolling();
+        };
+    }, [startPolling, stopPolling]);
 
     const handleFlyTo = (lat: number, lon: number) => { 
         setFlyToLocation([lat, lon]); 
@@ -101,9 +110,9 @@ export default function DashboardMap({ activeTrucks, isLoading }: DashboardMapPr
                 </div>
 
                 <div className="flex gap-2 flex-wrap justify-end max-w-[50%]">
-                    {isLoading ? (
+                    {isLoading && trucks.length === 0 ? (
                         <span className="text-xs text-slate-400 font-bold">Memuat armada...</span>
-                    ) : Array.isArray(activeTrucks) && activeTrucks.map((truck, idx) => (
+                    ) : Array.isArray(trucks) && trucks.map((truck, idx) => (
                         <button
                             key={idx}
                             onClick={() => handleFlyTo(truck.lat, truck.lon)}
@@ -135,7 +144,10 @@ export default function DashboardMap({ activeTrucks, isLoading }: DashboardMapPr
                     whenReady={() => { setTimeout(() => window.dispatchEvent(new Event('resize')), 400); }}
                 >
                     <MapController center={flyToLocation} />
-                    <TileLayer attribution='&copy; TomTom' url="https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=xUy50YsjmbRexLalxX3ThDpmC1lOzElP" />
+                    <TileLayer 
+                        attribution='&copy; TomTom' 
+                        url={`https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${import.meta.env.VITE_TOMTOM_API_KEY}`} 
+                    />
 
                     <Marker position={gudangLatLon} icon={createDashboardIcon('🏢', 'depo')}>
                         <Tooltip direction="top" offset={[0, -20]} opacity={1}><b>DEPO JAPFA CIKUPA</b></Tooltip>
@@ -147,7 +159,7 @@ export default function DashboardMap({ activeTrucks, isLoading }: DashboardMapPr
                         </Popup>
                     </Marker>
 
-                    {!isLoading && Array.isArray(activeTrucks) && activeTrucks.map((truck, idx) => (
+                    {Array.isArray(trucks) && trucks.map((truck, idx) => (
                         <Marker
                             key={idx}
                             position={[truck.lat, truck.lon]}

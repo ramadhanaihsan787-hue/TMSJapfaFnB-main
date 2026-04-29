@@ -1,28 +1,28 @@
+// src/features/drivers/hooks/useDriverPerformance.ts
 import { useState, useEffect, useCallback } from "react";
-import { useApi } from "../../../shared/hooks/useApi"; // 🌟 TYPO FIX: Path Import yang Bener!
+import { driverService } from "../services/driverService"; // 🌟 PAKAI SERVICE SEKARANG
 import type { DriverData } from "../types/types";
 
 export const useDriverPerformance = () => {
     const [drivers, setDrivers] = useState<DriverData[]>([]);
     const [expandedDriverId, setExpandedDriverId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState(""); 
+    const [loading, setLoading] = useState(false); // 🌟 State loading mandiri
 
-    // Bikin tanggal dinamis buat filter data 30 hari terakhir
+    // Tanggal dinamis 30 hari terakhir
     const today = new Date().toISOString().split('T')[0];
     const thirtyDaysAgo = new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0];
 
-    // 🌟 TEMBAK KE MESIN ANALYTICS ASLI POSTGRESQL!
-    const { loading, execute } = useApi(`/api/analytics/driver-performance?startDate=${thirtyDaysAgo}&endDate=${today}`);
-
     const fetchDrivers = useCallback(async () => {
+        setLoading(true);
         try {
-            const resData: any = await execute();
+            // 🌟 TEMBAK PAKE SERVICE
+            const resData: any = await driverService.getDriverPerformance(thirtyDaysAgo, today);
             const actualData = resData?.data?.data || resData?.data || resData;
             
             if (Array.isArray(actualData)) {
-                // Translator dari model.HRDriver PostgreSQL ke Frontend State
                 const mappedDrivers: DriverData[] = actualData.map((d: any) => ({
-                    id: d.id, // DRV-001
+                    id: d.id, 
                     name: d.name,
                     avatar: d.avatar,
                     status: d.status,
@@ -38,7 +38,7 @@ export const useDriverPerformance = () => {
                 }));
                 
                 setDrivers(mappedDrivers);
-                if (mappedDrivers.length > 0) {
+                if (mappedDrivers.length > 0 && !expandedDriverId) {
                     setExpandedDriverId(mappedDrivers[0].id);
                 }
             } else {
@@ -47,8 +47,10 @@ export const useDriverPerformance = () => {
         } catch (error) {
             console.error("Gagal menarik data supir:", error);
             setDrivers([]);
+        } finally {
+            setLoading(false);
         }
-    }, [execute]);
+    }, [thirtyDaysAgo, today, expandedDriverId]);
 
     useEffect(() => {
         fetchDrivers();

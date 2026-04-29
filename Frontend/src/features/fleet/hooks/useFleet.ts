@@ -8,7 +8,6 @@ export const useFleet = () => {
     const [selectedTruck, setSelectedTruck] = useState<FleetVehicle | null>(null);
     const [liveTelematics, setLiveTelematics] = useState<TelematicsData | null>(null);
     
-    // 🌟 STATE LOADING PENGGANTI useApi
     const [loading, setLoading] = useState(false);
 
     // 🌟 TEMBAK API PAKE SERVICE
