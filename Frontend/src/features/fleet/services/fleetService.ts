@@ -1,23 +1,32 @@
 // src/features/fleet/services/fleetService.ts
-import { api } from "shared/services/apiClient";
+import { api } from "../../../shared/services/apiClient"; // Sesuaikan path-nya
 
 export const fleetService = {
-    // Untuk narik data utama lu udah pake useApi, tapi kita sedia payung di sini
+    // 🌟 NARIK DAFTAR ARMADA
     getFleetList: async () => {
         const res = await api.get('/api/fleet');
         return res.data;
     },
 
+    // 🌟 DIGITAL TWIN: NARIK SUHU & GPS (Tadi ini yang kurang)
+    getTelematics: async (licensePlate: string) => {
+        const res = await api.get(`/api/fleet/telematics/${licensePlate}`);
+        return res.data;
+    },
+
+    // FITUR ASSIGN DRIVER
     assignDriver: async (vehicleId: string | number, driverId: string) => {
         const res = await api.post(`/api/fleet/${vehicleId}/assign`, { driver_id: driverId });
         return res.data;
     },
 
+    // LAPORAN KERUSAKAN
     reportMaintenance: async (vehicleId: string | number, issue: string) => {
         const res = await api.post(`/api/fleet/${vehicleId}/maintenance`, { issue });
         return res.data;
     },
 
+    // INPUT BENSIN
     addFuelLog: async (vehicleId: string | number, data: any) => {
         const res = await api.post(`/api/fleet/${vehicleId}/fuel`, data);
         return res.data;

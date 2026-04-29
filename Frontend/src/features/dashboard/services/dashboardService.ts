@@ -1,35 +1,40 @@
 // src/features/dashboard/services/dashboardService.ts
-import { useApi } from "shared/hooks/useApi";
+import { api } from "../../../shared/services/apiClient"; // 🌟 PASTIKAN PATH-NYA BENER KE apiClient LU
 
-export const useDashboardService = () => {
-    // 🌟 KUMPULIN SEMUA SENJATA RAHASIA DI SINI
-    const { execute: fetchKpi } = useApi<any>('/api/analytics/kpi-summary');
-    const { execute: fetchVolume } = useApi<any>('/api/dashboard/hourly-volume');
-    const { execute: fetchFleet } = useApi<any>('/api/dashboard/fleet-utilization');
-    const { execute: fetchTracking } = useApi<any>('/api/dashboard/live-tracking');
-    const { execute: fetchRejections } = useApi<any>('/api/dashboard/rejections');
-    const { execute: fetchAlerts } = useApi<any>('/api/dashboard/alerts');
+export const dashboardService = {
+    // 🌟 KITA PECAH JADI FUNGSI KECIL (Biar gampang dipanggil satuan kalo butuh)
+    fetchKpi: async () => (await api.get('/api/analytics/kpi-summary')).data,
+    fetchVolume: async () => (await api.get('/api/dashboard/hourly-volume')).data,
+    fetchFleet: async () => (await api.get('/api/dashboard/fleet-utilization')).data,
+    fetchTracking: async () => (await api.get('/api/dashboard/live-tracking')).data,
+    fetchRejections: async () => (await api.get('/api/dashboard/rejections')).data,
+    fetchAlerts: async () => (await api.get('/api/dashboard/alerts')).data,
 
-    // 🌟 BIKIN 1 FUNGSI SAKTI BUAT NARIK SEMUA DATA SEKALIGUS
-    const fetchAllDashboardData = async () => {
+    // 🌟 FUNGSI SAKTI BUAT NARIK SEMUA SEKALIGUS (PROMISE.ALL)
+    fetchAllDashboardData: async () => {
         try {
+            // Paralel request biar kenceng kayak F1! 🏎️💨
             const [kpiRes, volRes, fleetRes, trackRes, rejRes, alertRes] = await Promise.all([
-                fetchKpi(), 
-                fetchVolume(), 
-                fetchFleet(), 
-                fetchTracking(), 
-                fetchRejections(), 
-                fetchAlerts()
+                api.get('/api/analytics/kpi-summary'),
+                api.get('/api/dashboard/hourly-volume'),
+                api.get('/api/dashboard/fleet-utilization'),
+                api.get('/api/dashboard/live-tracking'),
+                api.get('/api/dashboard/rejections'),
+                api.get('/api/dashboard/alerts')
             ]);
 
-            return { kpiRes, volRes, fleetRes, trackRes, rejRes, alertRes };
+            // Karena axios ngebungkus respon di dalem object 'data', kita keluarin dulu
+            return { 
+                kpiRes: kpiRes.data, 
+                volRes: volRes.data, 
+                fleetRes: fleetRes.data, 
+                trackRes: trackRes.data, 
+                rejRes: rejRes.data, 
+                alertRes: alertRes.data 
+            };
         } catch (error) {
             console.error("Gagal menarik data dari server:", error);
-            throw error; // Lempar errornya biar bisa ditangkap sama halaman Dashboard
+            throw error;
         }
-    };
-
-    return {
-        fetchAllDashboardData
-    };
+    }
 };

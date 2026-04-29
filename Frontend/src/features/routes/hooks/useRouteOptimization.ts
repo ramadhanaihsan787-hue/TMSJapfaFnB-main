@@ -1,4 +1,3 @@
-// src/features/routes/hooks/useRouteOptimization.ts
 import { useState } from "react";
 import { routeService } from "../services/routeService";
 
@@ -17,18 +16,21 @@ export const useRouteOptimization = () => {
         }, 600);
 
         try {
-            const data = await routeService.optimizeRoute();
+            // 🌟 Panggil Backend buat ngitung AI (VRP)
+            const res = await routeService.optimizeRoute();
+            
             clearInterval(progressInterval);
             setLoadingProgress(100);
             
             // Jeda dikit biar animasi 100% keliatan
             setTimeout(() => {
-                setPreviewData(data);
+                // 🌟 TANGKEP DATA PREVIEW: (Data ini yang bakal dimunculin di Modal)
+                setPreviewData(res); 
                 setIsOptimizing(false);
                 setLoadingProgress(0);
             }, 800);
             
-            return data;
+            return res;
         } catch (err) {
             clearInterval(progressInterval);
             setIsOptimizing(false);
@@ -39,6 +41,7 @@ export const useRouteOptimization = () => {
 
     const confirm = async () => {
         try {
+            // 🌟 SIMPAN RUTE: Kirim data preview balik ke Backend buat di-save
             await routeService.confirmRoute(previewData);
             setPreviewData(null); // Tutup modal preview kalau sukses
             return true;

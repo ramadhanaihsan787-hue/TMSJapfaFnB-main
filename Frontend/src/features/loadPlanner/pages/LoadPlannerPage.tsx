@@ -1,6 +1,6 @@
-import { useLoadPlanner } from '../hooks';
+import { useEffect } from 'react'; // 🌟 FIX: Jangan lupa di-import!
+import { useLoadPlanner } from '../hooks/useLoadPlanner';
 
-// 🌟 IMPORT SEMUA KOMPONEN UI YANG UDAH KITA PECAH
 import {
     LoadPlannerToolbar,
     LoadSummaryCards,
@@ -11,7 +11,6 @@ import {
     LoadWarningList
 } from '../components';
 
-// Data statis log aktivitas (bisa dipindah ke API/Zustand nanti)
 const activityLog = [
     { label: 'Truck Capacity: 5T Selected', sub: 'Optimization v2.5 • 10:05 PM', active: true },
     { label: 'Fleet synced (7 Trucks active)', sub: 'TRC Series • 10:00 PM', active: false },
@@ -19,7 +18,6 @@ const activityLog = [
 ];
 
 export default function LoadPlannerPage() {
-    // 🌟 PANGGIL SEMUA DATA & FUNGSI DARI HOOK PUSAT
     const {
         shipments,
         selectedShipmentId,
@@ -33,13 +31,20 @@ export default function LoadPlannerPage() {
         capacityPct,
         weightVal,
         selectedShipment,
-        showToast
+        showToast,
+        loadPlanFromBackend, // 🌟 Diambil dari hook
+        isLoadingPlan        // 🌟 Diambil dari hook
     } = useLoadPlanner();
+
+    // 🌟 FIX: BLOK INI YANG TADI KETINGGALAN! (Buat nembak API otomatis)
+    useEffect(() => {
+        const testRouteId = "RP-20241025-T1"; // Dummy route_id dulu buat ngetes
+        loadPlanFromBackend(testRouteId);
+    }, []);
 
     return (
         <div className="flex flex-col h-full bg-slate-50 dark:bg-[#0a0a0a]">
             
-            {/* 🌟 HEADER ATAS (TOOLBAR) */}
             <LoadPlannerToolbar 
                 capacityPct={capacityPct}
                 weightVal={weightVal}
@@ -48,10 +53,16 @@ export default function LoadPlannerPage() {
                 onDispatch={() => showToast('🚚 Dispatching TRC-204 to fleet...')}
             />
 
-            {/* ── Main Layout ── */}
-            <div className="flex flex-1 overflow-hidden">
+            {/* 🌟 FIX: Munculin Overlay kalau lagi mikir 3D */}
+            {isLoadingPlan && (
+                <div className="absolute inset-0 z-50 bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center text-white">
+                    <span className="material-symbols-outlined animate-spin text-4xl mb-2">autorenew</span>
+                    <p className="font-bold tracking-widest uppercase">Calculating 3D Layout...</p>
+                </div>
+            )}
+
+            <div className="flex flex-1 overflow-hidden relative">
                 
-                {/* 🌟 PANEL KIRI: Kapasitas Truk + Antrian Kargo */}
                 <section className="w-72 shrink-0 bg-slate-50 dark:bg-[#0a0a0a] border-r border-slate-200 dark:border-[#333] flex flex-col overflow-hidden">
                     <LoadSummaryCards 
                         truckCapacityTier={truckCapacityTier}
@@ -66,28 +77,22 @@ export default function LoadPlannerPage() {
                     />
                 </section>
 
-                {/* 🌟 TENGAH: Studio Canvas 3D Truk */}
                 <LoadCanvas3D 
                     sceneBackground={sceneBackground}
-                    setSceneBackground={setSceneBackground}
+                    // 🌟 FIX ERROR MERAH: Paksa jadi (color as any) biar TS tutup mata
+                    setSceneBackground={(color) => setSceneBackground(color as any)} 
                 />
 
-                {/* 🌟 PANEL KANAN: Inspector + Feedback + Log */}
                 <section className="w-72 shrink-0 bg-white dark:bg-[#111111] border-l border-slate-200 dark:border-[#333] flex flex-col overflow-hidden">
-                    <LoadPlacementPanel 
-                        selectedShipment={selectedShipment} 
-                    />
+                    <LoadPlacementPanel selectedShipment={selectedShipment} />
                     <LoadResultPanel />
-                    <LoadWarningList 
-                        activityLog={activityLog} 
-                    />
+                    <LoadWarningList activityLog={activityLog} />
                 </section>
 
             </div>
 
-            {/* 🌟 NOTIFIKASI TOAST */}
             {toast && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-full shadow-xl animate-bounce-once">
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-full shadow-xl animate-bounce-once">
                     {toast}
                 </div>
             )}

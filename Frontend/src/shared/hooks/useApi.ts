@@ -1,4 +1,7 @@
+// src/shared/hooks/useApi.ts (Sesuaikan path-nya ya Bos)
 import { useState, useCallback } from 'react';
+// 🌟 IMPORT MESIN AXIOS KITA (Sesuaikan path ke apiClient.ts lu)
+import { api } from '../services/apiClient'; 
 
 interface UseApiOptions {
     method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -14,62 +17,51 @@ interface UseApiResponse<T> {
 }
 
 /**
- * Custom hook buat narik data API. Sudah otomatis bawa JWT Token!
+ * Custom hook buat narik data API. 
+ * 🌟 SEKARANG UDAH PAKE MESIN AXIOS (apiClient) DI DALEMNYA!
  */
 export function useApi<T>(url: string, initialOptions: UseApiOptions = {}): UseApiResponse<T> {
     const [data, setData] = useState<T | null>(null);
     const [error, setError] = useState<Error | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
 
+    // Pake stringify buat trik dependency array biar TS anteng
+    const optionsString = JSON.stringify(initialOptions);
+
     const execute = useCallback(async (overrideOptions: UseApiOptions = {}) => {
-        const options = { ...initialOptions, ...overrideOptions };
+        const parsedInitial = JSON.parse(optionsString);
+        const options = { ...parsedInitial, ...overrideOptions };
         const { method = 'GET', body, headers = {} } = options;
 
         setLoading(true);
         setError(null);
 
         try {
-            // 🌟 CARA BARU YANG DISUKAI TYPESCRIPT
-            const token = localStorage.getItem('token');
-            
-            // 1. Bikin tas (object) khusus buat headers yang isinya pasti Teks (String)
-            const fetchHeaders: Record<string, string> = {
-                'Content-Type': 'application/json',
-                ...headers,
-            };
-
-            // 2. Kalau KTP-nya (Token) ada, baru kita masukin ke dalem tas
-            if (token) {
-                fetchHeaders['Authorization'] = `Bearer ${token}`;
-            }
-
-            // 3. Tembak API-nya
-            const response = await fetch(`http://127.0.0.1:8000${url}`, {
+            // 🌟 1. TEMBAK PAKE AXIOS (apiClient)
+            // KTP (Token), Base URL, dan tendangan 401 udah diurus otomatis sama apiClient!
+            // Jadi kodingan lu jauh lebih bersih!
+            const response = await api({
                 method,
-                headers: fetchHeaders,
-                body: body ? JSON.stringify(body) : undefined,
+                url,
+                data: body, // Axios pakenya 'data', bukan 'body'
+                headers
             });
 
-            if (!response.ok) {
-                // Kalau satpam Backend nolak karena KTP mati/rusak, langsung tendang ke halaman login
-                if (response.status === 401) {
-                    localStorage.removeItem('token');
-                    window.location.href = '/login';
-                }
-                throw new Error(`API Error: ${response.status} ${response.statusText}`);
-            }
-
-            const result = await response.json();
+            // 🌟 2. AMBIL HASILNYA
+            const result = response.data;
             setData(result);
             return result;
-        } catch (err) {
-            const errorInstance = err instanceof Error ? err : new Error(String(err));
+
+        } catch (err: any) {
+            // 🌟 3. TANGKAP ERROR AXIOS
+            const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || "Terjadi kesalahan API Bos!";
+            const errorInstance = new Error(errorMessage);
             setError(errorInstance);
             return null;
         } finally {
             setLoading(false);
         }
-    }, [url, initialOptions]);
+    }, [url, optionsString]);
 
     return { data, error, loading, execute };
 }

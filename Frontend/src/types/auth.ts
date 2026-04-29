@@ -1,8 +1,3 @@
-/**
- * Authentication Types
- * Centralized types for authentication and authorization
- */
-
 export interface AuthContextType {
   user: AuthUser | null;
   token: string | null;

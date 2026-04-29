@@ -207,11 +207,17 @@ def dashboard_fleet_utilization(
     from routers.analytics import get_fleet_utilization
     return get_fleet_utilization(period, db, current_user)
 
-@router.get("/rejections")
+@router.get("/dashboard/rejections")
 def dashboard_rejections(
-    db: Session = Depends(get_db),
+    start_date: str = None, 
+    end_date: str = None, 
+    db: Session = Depends(get_db), 
     current_user: models.User = Depends(get_current_user)
 ):
-    """Redirect ke analytics endpoint"""
-    from routers.analytics import get_rejection_analysis
-    return get_rejection_analysis(db, current_user)
+    # ✅ BENAR: Panggil pake nama parameternya biar ngga ketukar kamarnya!
+    return get_rejection_analysis(
+        startDate=start_date, 
+        endDate=end_date, 
+        db=db, 
+        current_user=current_user
+    )

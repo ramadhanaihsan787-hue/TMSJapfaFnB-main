@@ -1,7 +1,6 @@
 // src/features/analytics/hooks/useAnalytics.ts
-import { useState, useEffect } from 'react';
-import { useApi } from 'shared/hooks/useApi';
-// Sesuaikan path ini kalau API_ENDPOINTS lu ada di folder lain 
+import { useState, useEffect, useCallback } from 'react';
+import { analyticsService } from '../services/analyticsService';
 import type { KPISummary, FleetUtilization, DeliveryVolume, DriverPerformance } from '../types';
 
 export const useAnalytics = () => {
@@ -15,43 +14,80 @@ export const useAnalytics = () => {
     
     const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
 
-    // 🌟 URL DINAMIS
-    const queryString = `?startDate=${startDate}&endDate=${endDate}`;
+    // 🌟 STATE DATA (Bersih & Terkontrol)
+    const [kpiData, setKpiData] = useState<KPISummary | undefined>();
+    const [fleetData, setFleetData] = useState<FleetUtilization | undefined>();
+    const [volumeData, setVolumeData] = useState<DeliveryVolume[]>([]);
+    const [maxVolume, setMaxVolume] = useState<number>(1);
+    const [driverData, setDriverData] = useState<DriverPerformance[]>([]);
     
-    // 🌟 TEMBAK API PAKE SENJATA RAHASIA (ALAMAT FIX)
-    const { data: summary, loading: summaryLoading, execute: fetchSummary } = useApi<{ data: KPISummary }>(`/api/analytics/kpi-summary${queryString}`);
-    const { data: utilization, loading: utilizationLoading, execute: fetchUtilization } = useApi<{ data: FleetUtilization }>(`/api/analytics/fleet-utilization${queryString}`);
-    const { data: volume, loading: volumeLoading, execute: fetchVolume } = useApi<{ data: DeliveryVolume[], max: number }>(`/api/analytics/delivery-volume${queryString}`);
-    const { data: drivers, loading: driversLoading, execute: fetchDrivers } = useApi<{ data: DriverPerformance[] }>(`/api/analytics/driver-performance${queryString}`);
+    // 🌟 SATU LOADING UNTUK SEMUA (Biar UI ngga kedap-kedip aneh)
+    const [loading, setLoading] = useState(false);
+
+    // 🌟 ENGINE PENARIK DATA
+    const fetchAllData = useCallback(async () => {
+        if (!startDate || !endDate) return;
+
+        if (new Date(startDate) > new Date(endDate)) {
+            alert("Tanggal Mulai tidak boleh lebih besar dari Tanggal Akhir Bos!");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const data = await analyticsService.fetchAnalyticsData(startDate, endDate);
+            
+            // Masukin data ke masing-masing state
+            setKpiData(data.summary?.data);
+            setFleetData(data.utilization?.data);
+            setVolumeData(data.volume?.data || []);
+            setMaxVolume(data.volume?.max || 1);
+            setDriverData(data.drivers?.data || []);
+            
+        } catch (error) {
+            console.error("Gagal sinkronisasi Analytics:", error);
+        } finally {
+            setLoading(false);
+        }
+    }, [startDate, endDate]);
 
     // 🌟 EFEK TRIGGER KALO TANGGAL BERUBAH
     useEffect(() => {
-        if (startDate && endDate) {
-            if (new Date(startDate) > new Date(endDate)) {
-                alert("Tanggal Mulai tidak boleh lebih besar dari Tanggal Akhir Bos!");
-                return;
-            }
-            
-            fetchSummary();
-            fetchUtilization();
-            fetchVolume();
-            fetchDrivers();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [startDate, endDate]); 
+        fetchAllData();
+    }, [fetchAllData]); 
 
     // Helper untuk ngitung tinggi balok chart
-    const getBarHeight = (count: number, maxVolume: number) => {
+    const getBarHeight = (count: number, maxVol: number) => {
         if (count === 0) return "5%"; 
-        const max = maxVolume || 1; // Cegah dibagi nol
+        const max = maxVol || 1; // Cegah dibagi nol
         return `${(count / max) * 100}%`;
     };
 
-    // Fungsi handle Export
-    const handleExport = () => {
-        alert(`Siap komandan! Nanti fitur export PDF dari tanggal ${startDate} ke ${endDate} bakal dijahit di sini!`);
+    // 🌟 FIX: Fungsi handle Export (Udah dirapihin ngga ada yang dobel)
+    const handleExport = async () => {
+        try {
+            // 1. Tembak API Export
+            const blobData = await analyticsService.exportReport(startDate, endDate);
+            
+            // 2. Bikin link virtual di browser buat download
+            const url = window.URL.createObjectURL(new Blob([blobData]));
+            const link = document.createElement('a');
+            link.href = url;
+            
+            // 3. Kasih nama file dinamis sesuai tanggal
+            link.setAttribute('download', `Laporan_JAPFA_${startDate}_sd_${endDate}.pdf`); 
+            
+            // 4. Eksekusi klik download lalu bersihin
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode?.removeChild(link);
+            
+        } catch (error) {
+            alert("Gagal download laporan. Pastikan Backend sudah siap ngirim file!");
+        }
     };
 
+    // 🌟 FIX: Return block kembali ke jalan yang benar (di luar fungsi handleExport)
     return {
         startDate,
         setStartDate,
@@ -60,18 +96,18 @@ export const useAnalytics = () => {
         handleExport,
         
         // Data & Loading States
-        kpiData: summary?.data,
-        summaryLoading,
+        kpiData,
+        summaryLoading: loading, 
         
-        fleetData: utilization?.data,
-        utilizationLoading,
+        fleetData,
+        utilizationLoading: loading,
         
-        volumeData: volume?.data || [],
-        maxVolume: volume?.max || 1,
-        volumeLoading,
+        volumeData,
+        maxVolume,
+        volumeLoading: loading,
         getBarHeight,
         
-        driverData: drivers?.data || [],
-        driversLoading
+        driverData,
+        driversLoading: loading
     };
 };

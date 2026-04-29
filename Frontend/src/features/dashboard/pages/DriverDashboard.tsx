@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import Header from '../../components/Header';
+import Header from '../../../shared/components/Header';
 
 const DriverDashboard: React.FC = () => {
     const navigate = useNavigate();

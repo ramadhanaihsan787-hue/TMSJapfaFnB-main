@@ -1,5 +1,5 @@
-import PodSidebar from "./Sidebar";
-import Header from "../../components/Header";
+import PodSidebar from "../../../shared/components/Sidebar";
+import Header from '../../../shared/components/Header';
 
 export default function Dashboard() {
     return (

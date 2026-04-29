@@ -11,6 +11,11 @@ from database import SessionLocal
 from dependencies import get_current_user, require_role
 
 router = APIRouter(prefix="/api", tags=["Fleet Management"])
+# ==========================================
+# CACHE UNTUK DIGITAL TWIN (IoT TELEMATICS)
+# ==========================================
+# Ini ibarat Redis versi kere, nyimpen suhu di RAM biar kenceng!
+live_telematics_cache = {}
 
 def get_db():
     db = SessionLocal()
@@ -287,3 +292,55 @@ def get_fleet_summary(
         "inMaintenance": in_maintenance,
         "available": total_trucks - active_today - in_maintenance
     }
+
+# ==========================================
+# ENDPOINT 7: API GET LIVE DATA (Buat Frontend)
+# ==========================================
+@router.get("/fleet/telematics/{truck_plate}")
+def get_live_telematics(truck_plate: str, db: Session = Depends(get_db)):
+    """Backend narik data dari URL Sensor Bawaan Truk, lalu dikirim ke Frontend"""
+    
+    settings = db.query(models.SystemSettings).first()
+    max_temp = settings.alert_max_temp_celsius if settings else 4.0
+
+    # Fallback default kalau URL vendor belum di-setting
+    default_telematics = {
+        "temperature": 2.5,
+        "isTempWarning": False,
+        "compressorStatus": "ON",
+        "gpsSignal": "NORMAL",
+        "doorLocked": True,
+        "lastUpdate": datetime.now().isoformat()
+    }
+
+    if not settings or not settings.api_temp_sensor:
+        return default_telematics
+
+    try:
+        # 🌟 INI DIA TEMPAT LU NARUH URL VENDORNYA!
+        # Backend nembak URL bawaan truk lu (Misal URL-nya butuh parameter plat nomor)
+        # timeout=5 biar kalau server vendor truknya lemot, backend lu ngga ikutan nge-hang
+        url_vendor = f"{settings.api_temp_sensor}?plate={truck_plate}" 
+        response = requests.get(url_vendor, timeout=5)
+        
+        if response.status_code == 200:
+            vendor_data = response.json()
+            
+            # 🌟 MAPPING: Sesuaikan sama nama field dari API Vendor truk lu!
+            current_temp = float(vendor_data.get("suhu_sekarang", 2.5)) 
+            
+            return {
+                "temperature": current_temp,
+                "isTempWarning": current_temp > max_temp,
+                "compressorStatus": "ON" if current_temp > 2.0 else "OFF",
+                "gpsSignal": "STRONG", 
+                "doorLocked": vendor_data.get("pintu_terkunci", True),
+                "lastUpdate": datetime.now().isoformat()
+            }
+            
+    except Exception as e:
+        print(f"⚠️ Gagal narik data dari API Vendor Truk: {str(e)}")
+        pass
+
+    # Kalau API vendor error, balikin data default
+    return default_telematics

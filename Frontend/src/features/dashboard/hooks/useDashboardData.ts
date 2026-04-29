@@ -1,6 +1,6 @@
 // src/features/dashboard/hooks/useDashboardData.ts
 import { useState, useEffect } from "react";
-import { useDashboardService } from "../services/dashboardService";
+import { dashboardService } from '../services/dashboardService';
 
 // 🌟 PINDAHIN SEMUA INTERFACE KE SINI BIAR RAPI
 export interface LiveTruck { id: string; driver: string; lat: number; lon: number; status: string; isDelayed: boolean; }
@@ -21,7 +21,7 @@ export const useDashboardData = () => {
     const [isLoading, setIsLoading] = useState(true);
 
     // 🌟 PANGGIL SERVICE API-NYA
-    const { fetchAllDashboardData } = useDashboardService();
+    const { fetchAllDashboardData } = dashboardService;
 
     // 🌟 USE-EFFECT PINDAH KE SINI SEMUA
     useEffect(() => {
