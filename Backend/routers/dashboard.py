@@ -4,26 +4,10 @@ from sqlalchemy.orm import Session
 from datetime import date, datetime
 
 import models
-from database import SessionLocal
-from dependencies import get_current_user
+# 🌟 IMPORT GET_DB DAN GET_SETTINGS DARI PUSAT KOMANDO!
+from dependencies import get_db, get_settings, get_current_user
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-def get_settings(db: Session) -> models.SystemSettings:
-    settings = db.query(models.SystemSettings).first()
-    if not settings:
-        settings = models.SystemSettings(id=1)
-        db.add(settings)
-        db.commit()
-        db.refresh(settings)
-    return settings
 
 # ==========================================
 # ENDPOINT 1: LIVE TRACKING
@@ -34,7 +18,8 @@ def get_live_tracking(
     current_user: models.User = Depends(get_current_user)
 ):
     today = date.today()
-    settings = get_settings(db)
+    # 🌟 FIX: Panggil get_settings dari dependencies tanpa parameter db
+    settings = get_settings()
 
     # Koordinat depo dari settings (bukan hardcode!)
     DEPO_LAT = settings.depo_lat
@@ -122,7 +107,7 @@ def get_realtime_alerts(
     current_user: models.User = Depends(get_current_user)
 ):
     today = date.today()
-    settings = get_settings(db)
+    settings = get_settings() # 🌟 FIX: Pake versi bersih
     now = datetime.now()
     now_minutes = now.hour * 60 + now.minute
 
@@ -185,7 +170,6 @@ def get_realtime_alerts(
 
 # ==========================================
 # ENDPOINT 3 & 4: LEGACY SUPPORT WIDGETS
-# (Dashboard lama masih pakai URL /api/dashboard/*)
 # ==========================================
 @router.get("/hourly-volume")
 def dashboard_hourly_volume(
@@ -193,7 +177,6 @@ def dashboard_hourly_volume(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Redirect ke analytics endpoint"""
     from routers.analytics import get_delivery_volume
     return get_delivery_volume(period, db, current_user)
 
@@ -203,18 +186,20 @@ def dashboard_fleet_utilization(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Redirect ke analytics endpoint"""
     from routers.analytics import get_fleet_utilization
     return get_fleet_utilization(period, db, current_user)
 
-@router.get("/dashboard/rejections")
+# 🌟 FIX: Path diubah jadi /rejections aja (biar ga double dashboard)
+@router.get("/rejections")
 def dashboard_rejections(
     start_date: str = None, 
     end_date: str = None, 
     db: Session = Depends(get_db), 
     current_user: models.User = Depends(get_current_user)
 ):
-    # ✅ BENAR: Panggil pake nama parameternya biar ngga ketukar kamarnya!
+    # 🌟 FIX: Panggil fungsi "hantu"-nya biar ga crash!
+    from routers.analytics import get_rejection_analysis 
+    
     return get_rejection_analysis(
         startDate=start_date, 
         endDate=end_date, 

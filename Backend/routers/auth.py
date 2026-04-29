@@ -8,8 +8,8 @@ from pydantic import BaseModel
 from typing import Optional
 
 import models
-from database import SessionLocal
-from dependencies import get_current_user, require_role
+# 🌟 IMPORT GET_DB DARI PUSAT KOMANDO! (SessionLocal dihapus karena udah ga dipake di sini)
+from dependencies import get_db, get_current_user, require_role
 from services.auth_service import AuthService
 
 router = APIRouter(tags=["Authentication"])
@@ -30,17 +30,6 @@ class RegisterRequest(BaseModel):
     password: str
     full_name: str
     role: str
-
-
-# ==========================================
-# DEPENDENCIES
-# ==========================================
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 # ==========================================

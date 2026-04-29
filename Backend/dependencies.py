@@ -8,7 +8,10 @@ from sqlalchemy.orm import Session
 
 from database import SessionLocal
 from core.security import decode_token
-import models # 🌟 Baris import core.config DIBUANG KARENA NGGA DIPAKE!
+import models 
+
+# 🌟 PUSAT KOMANDO SETTINGS
+from core.config import settings 
 
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
@@ -16,16 +19,22 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 def get_db():
     """
-    Dependency to get database session
-    
-    Yields:
-        Session: SQLAlchemy database session
+    Dependency to get database session.
+    HANYA BOLEH ADA DI SINI! File lain wajib import dari sini.
     """
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+
+def get_settings():
+    """
+    Dependency to get application settings.
+    Satu sumber kebenaran untuk konfigurasi!
+    """
+    return settings
 
 
 def get_current_user(
@@ -40,20 +49,14 @@ def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
-    # 🚨 PASANG CCTV: Liat token apa yang masuk
-    print(f"🎫 ADA YANG MAU MASUK! TOKEN: {token[:15]}... (dipotong)") 
 
     try:
         payload = decode_token(token)
         username: str = payload.get("sub")
         if username is None:
-            print("❌ DITOLAK: Username (sub) kosong di dalem Payload JWT!")
             raise credential_exception
             
-    except JWTError as e:
-        # 🚨 INI DIA BIANG KEROKNYA! KITA TANGKEP ERRORNYA!
-        print(f"❌ DITOLAK KARENA JWT ERROR: {str(e)}") 
+    except JWTError:
         raise credential_exception
     
     user = db.query(models.User).filter(
@@ -61,10 +64,8 @@ def get_current_user(
     ).first()
     
     if user is None:
-        print(f"❌ DITOLAK: User '{username}' ngga ketemu di Database!")
         raise credential_exception
     
-    print(f"✅ LOLOS: Selamat datang, {user.username}!")
     return user
 
 

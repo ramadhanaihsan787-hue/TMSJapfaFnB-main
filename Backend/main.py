@@ -1,13 +1,18 @@
 """
 TMS JAPFA Backend - Main Application Entry Point
 Arsitektur sudah dirapikan oleh CTO. Urutan inisialisasi:
-1. Imports -> 2. FastAPI Init -> 3. Middleware -> 4. Static & Routers
+1. Imports -> 2. FastAPI Init -> 3. Middleware (CORS & Rate Limit) -> 4. Static & Routers
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.utils import get_openapi
 import os
+
+# 🌟 IMPORT SATPAM ANTI-DDoS (SLOWAPI)
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # Core & Config
 from core.config import settings
@@ -26,7 +31,7 @@ from routers import (
     dashboard as dashboard_router,
     settings as settings_router,
     customer as customer_router,
-    driver as driver_router  # 🌟 Router Driver App lu
+    driver as driver_router  # Router Driver App
 )
 
 # ==========================================
@@ -35,25 +40,42 @@ from routers import (
 Base.metadata.create_all(bind=engine)
 
 # ==========================================
-# 2. INITIALIZE APP (WAJIB DI SINI!)
+# 2. INITIALIZE APP & RATE LIMITER (SATPAM)
 # ==========================================
+# Satpam bakal nyatet IP Address. Default: 100 request per menit per IP
+limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
+
 app = FastAPI(
     title=settings.APP_NAME,
     description=settings.APP_DESCRIPTION,
     version=settings.APP_VERSION,
 )
 
+# Daftarin Satpam ke dalem aplikasi
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # Pasang Jaring Pengaman Global
 setup_exception_handlers(app)
 
 # ==========================================
-# 3. MIDDLEWARE & STATIC FILES
+# 3. MIDDLEWARE (CORS) & STATIC FILES
 # ==========================================
+# 🌟 FIX SECURITY: Jangan pake "*". Daftarin alamat Frontend lu!
+# Tambahin port lain kalau lu pake Vite (5173) atau IP Local LAN HP Supir.
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173", 
+    "http://127.0.0.1:5173",
+    # "https://tms-japfa.com", # Buka komen ini kalau udah naik ke server asli
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=ALLOWED_ORIGINS, 
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], # Jangan kasih "*", definisikan jelas!
     allow_headers=["*"],
 )
 
@@ -100,13 +122,14 @@ app.include_router(analytics_router.router, tags=["Analytics"])
 app.include_router(dashboard_router.router, tags=["Dashboard"])
 app.include_router(settings_router.router, tags=["Settings"])
 app.include_router(customer_router.router, tags=["Customers"])
-app.include_router(driver_router.router, tags=["Drivers"]) # 🌟 Router Driver App Hidup!
+app.include_router(driver_router.router, tags=["Drivers"]) 
 
 # ==========================================
 # 6. SYSTEM ENDPOINTS
 # ==========================================
 @app.get("/health", tags=["System"])
-def health_check():
+@limiter.limit("5/minute") # 🌟 CONTOH: Endpoint ini cuma boleh dipanggil 5x per menit!
+def health_check(request: Request):
     return {
         "status": "healthy",
         "app": settings.APP_NAME,
@@ -114,7 +137,7 @@ def health_check():
     }
 
 @app.get("/", tags=["System"])
-def read_root():
+def read_root(request: Request):
     return {
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,

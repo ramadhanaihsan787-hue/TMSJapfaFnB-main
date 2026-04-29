@@ -6,26 +6,10 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 
 import models
-from database import SessionLocal
-from dependencies import get_current_user, require_role
+# 🌟 IMPORT PUSAT KOMANDO! (Benalu dibasmi)
+from dependencies import get_db, get_settings, get_current_user, require_role
 
 router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-def get_settings(db: Session) -> models.SystemSettings:
-    settings = db.query(models.SystemSettings).first()
-    if not settings:
-        settings = models.SystemSettings(id=1)
-        db.add(settings)
-        db.commit()
-        db.refresh(settings)
-    return settings
 
 # ==========================================
 # 🌟 HELPER BARU: Ubah String YYYY-MM-DD dari Frontend jadi Date Python
@@ -84,7 +68,9 @@ def get_kpi_summary(
 ): 
     # Ubah teks jadi tanggal beneran
     start_date, end_date = parse_dates(startDate, endDate)
-    settings = get_settings(db)
+    
+    # 🌟 FIX: Panggil tanpa parameter db!
+    settings = get_settings()
 
     # Total DO dalam rute
     total_do = db.query(models.TMSRouteLine).join(
@@ -92,7 +78,7 @@ def get_kpi_summary(
         models.TMSRouteLine.route_id == models.TMSRoutePlan.route_id
     ).filter(
         models.TMSRoutePlan.planning_date >= start_date,
-        models.TMSRoutePlan.planning_date <= end_date, # Pake end_date, bukan today lagi
+        models.TMSRoutePlan.planning_date <= end_date, 
         models.TMSRouteLine.sequence > 0
     ).count()
 
@@ -208,7 +194,6 @@ def get_delivery_volume(
     ]
     max_val = max([v for v in buckets.values()] + [1])
 
-    # 🌟 INI DIA YANG ILANG KEMAREN BOS! REZEKI NOMPLOK!
     return {"status": "success", "data": data, "max": max_val}
 
 # ==========================================
@@ -337,7 +322,6 @@ def get_rejection_analysis(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    # Buat endpoint rejections juga sekalian gw benerin kalau mau difilter
     if startDate and endDate:
         start_date, end_date = parse_dates(startDate, endDate)
         rejected = db.query(models.TMSEpodHistory).filter(

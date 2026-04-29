@@ -8,17 +8,10 @@ from io import BytesIO
 import pandas as pd
 
 import models
-from database import SessionLocal
-from dependencies import get_current_user, require_role
+# 🌟 IMPORT GET_DB DARI PUSAT KOMANDO! (Say goodbye to copy-paste!)
+from dependencies import get_db, get_current_user, require_role
 
 router = APIRouter(prefix="/api/customers", tags=["Master Customers"])
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 # ==========================================
 # SCHEMAS

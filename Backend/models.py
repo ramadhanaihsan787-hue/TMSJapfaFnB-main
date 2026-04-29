@@ -233,7 +233,6 @@ class SystemSettings(Base):
     depo_lon = Column(Float, default=106.479163)
     
     # ===== Telematics & IoT =====
-    api_tomtom_key = Column(String(100), default="")
     api_gps_webhook = Column(String(255), nullable=True)
     api_temp_sensor = Column(String(255), nullable=True)
     sync_interval_sec = Column(Integer, default=60)

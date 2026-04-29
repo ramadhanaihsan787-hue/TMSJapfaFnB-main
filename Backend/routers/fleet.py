@@ -5,24 +5,19 @@ from sqlalchemy import desc
 from pydantic import BaseModel
 from typing import Optional
 from datetime import date, datetime
+import requests # 🌟 FIX: DITAMBAHIN BIAR NGGA CRASH PAS NARIK DATA SENSOR!
 
 import models
-from database import SessionLocal
-from dependencies import get_current_user, require_role
+# 🌟 IMPORT PUSAT KOMANDO (DRY Principle)
+from dependencies import get_db, get_settings, get_current_user, require_role
 
 router = APIRouter(prefix="/api", tags=["Fleet Management"])
+
 # ==========================================
 # CACHE UNTUK DIGITAL TWIN (IoT TELEMATICS)
 # ==========================================
 # Ini ibarat Redis versi kere, nyimpen suhu di RAM biar kenceng!
 live_telematics_cache = {}
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 # ==========================================
 # SCHEMAS
@@ -95,7 +90,6 @@ def get_all_fleet(
                     "station": fh.station_name
                 })
 
-        # 🌟 TAMENG PENGAMAN: Jaga-jaga kalau latest_fuel kosong (None)
         fuel_efficiency = 0.0
         if latest_fuel:
             jarak_tempuh = (latest_fuel.km_akhir or 0) - (latest_fuel.km_awal or 0)
@@ -119,7 +113,7 @@ def get_all_fleet(
             },
             "lastFuelDate": str(latest_fuel.date_logged) if latest_fuel else "-",
             "lastFuelCost": f"Rp{latest_fuel.cost_rp:,.0f}" if latest_fuel else "-",
-            "fuelEfficiency": fuel_efficiency, # 🌟 Pake variabel yang udah aman
+            "fuelEfficiency": fuel_efficiency, 
             "history": fuel_history
         })
 
@@ -132,9 +126,7 @@ def get_all_fleet(
 def add_on_call_fleet(
     data: OnCallFleetRequest,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(
-        require_role("admin_distribusi", "manager_logistik")
-    )
+    current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))
 ):
     existing = db.query(models.FleetVehicle).filter(
         models.FleetVehicle.license_plate == data.plate_number
@@ -171,9 +163,7 @@ def update_truck_status(
     truck_id: int,
     status_data: VehicleStatusUpdate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(
-        require_role("admin_distribusi", "manager_logistik")
-    )
+    current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))
 ):
     truck = db.query(models.FleetVehicle).filter(
         models.FleetVehicle.vehicle_id == truck_id
@@ -195,9 +185,7 @@ def add_fuel_log(
     truck_id: int,
     data: FuelLogCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(
-        require_role("admin_distribusi", "manager_logistik", "driver")
-    )
+    current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik", "driver"))
 ):
     truck = db.query(models.FleetVehicle).filter(
         models.FleetVehicle.vehicle_id == truck_id
@@ -206,10 +194,8 @@ def add_fuel_log(
     if not truck:
         raise HTTPException(status_code=404, detail="Truk tidak ditemukan!")
 
-    # Update KM terakhir
     truck.current_km = data.km_akhir
 
-    # Simpan fuel log
     fuel_log = models.FuelLog(
         vehicle_id=truck_id,
         date_logged=date.today(),
@@ -227,10 +213,7 @@ def add_fuel_log(
     return {
         "message": f"Bensin {data.liters}L di {data.station_name} berhasil dicatat!",
         "log_id": fuel_log.log_id,
-        "efficiency": calculate_efficiency(
-            data.km_akhir - data.km_awal,
-            data.liters
-        )
+        "efficiency": calculate_efficiency(data.km_akhir - data.km_awal, data.liters)
     }
 
 # ==========================================
@@ -238,10 +221,7 @@ def add_fuel_log(
 # ==========================================
 @router.get("/fleet/{truck_id}/fuel-history")
 def get_fuel_history(
-    truck_id: int,
-    limit: int = 30,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    truck_id: int, limit: int = 30, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)
 ):
     logs = db.query(models.FuelLog).filter(
         models.FuelLog.vehicle_id == truck_id
@@ -258,12 +238,9 @@ def get_fuel_history(
                 "distance": (l.km_akhir or 0) - (l.km_awal or 0),
                 "liters": l.liters,
                 "costRp": f"Rp{l.cost_rp:,.0f}",
-                "efficiency": calculate_efficiency(
-                    (l.km_akhir or 0) - (l.km_awal or 0), l.liters
-                ),
+                "efficiency": calculate_efficiency((l.km_akhir or 0) - (l.km_awal or 0), l.liters),
                 "station": l.station_name
-            }
-            for l in logs
+            } for l in logs
         ]
     }
 
@@ -271,19 +248,12 @@ def get_fuel_history(
 # ENDPOINT 6: FLEET SUMMARY (KPI Cards)
 # ==========================================
 @router.get("/fleet/summary")
-def get_fleet_summary(
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
-):
+def get_fleet_summary(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     today = date.today()
 
     total_trucks = db.query(models.FleetVehicle).count() or 1
-    active_today = db.query(models.TMSRoutePlan).filter(
-        models.TMSRoutePlan.planning_date == today
-    ).count()
-    in_maintenance = db.query(models.FleetVehicle).filter(
-        models.FleetVehicle.status == "Maintenance"
-    ).count()
+    active_today = db.query(models.TMSRoutePlan).filter(models.TMSRoutePlan.planning_date == today).count()
+    in_maintenance = db.query(models.FleetVehicle).filter(models.FleetVehicle.status == "Maintenance").count()
 
     return {
         "status": "success",
@@ -300,33 +270,24 @@ def get_fleet_summary(
 def get_live_telematics(truck_plate: str, db: Session = Depends(get_db)):
     """Backend narik data dari URL Sensor Bawaan Truk, lalu dikirim ke Frontend"""
     
-    settings = db.query(models.SystemSettings).first()
+    # 🌟 FIX: AMBIL SETTINGS DARI PUSAT KOMANDO!
+    settings = get_settings()
     max_temp = settings.alert_max_temp_celsius if settings else 4.0
 
-    # Fallback default kalau URL vendor belum di-setting
     default_telematics = {
-        "temperature": 2.5,
-        "isTempWarning": False,
-        "compressorStatus": "ON",
-        "gpsSignal": "NORMAL",
-        "doorLocked": True,
-        "lastUpdate": datetime.now().isoformat()
+        "temperature": 2.5, "isTempWarning": False, "compressorStatus": "ON",
+        "gpsSignal": "NORMAL", "doorLocked": True, "lastUpdate": datetime.now().isoformat()
     }
 
     if not settings or not settings.api_temp_sensor:
         return default_telematics
 
     try:
-        # 🌟 INI DIA TEMPAT LU NARUH URL VENDORNYA!
-        # Backend nembak URL bawaan truk lu (Misal URL-nya butuh parameter plat nomor)
-        # timeout=5 biar kalau server vendor truknya lemot, backend lu ngga ikutan nge-hang
         url_vendor = f"{settings.api_temp_sensor}?plate={truck_plate}" 
         response = requests.get(url_vendor, timeout=5)
         
         if response.status_code == 200:
             vendor_data = response.json()
-            
-            # 🌟 MAPPING: Sesuaikan sama nama field dari API Vendor truk lu!
             current_temp = float(vendor_data.get("suhu_sekarang", 2.5)) 
             
             return {
@@ -342,5 +303,4 @@ def get_live_telematics(truck_plate: str, db: Session = Depends(get_db)):
         print(f"⚠️ Gagal narik data dari API Vendor Truk: {str(e)}")
         pass
 
-    # Kalau API vendor error, balikin data default
     return default_telematics

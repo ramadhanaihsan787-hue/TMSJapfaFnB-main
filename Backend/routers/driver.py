@@ -1,3 +1,4 @@
+# routers/driver.py
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from datetime import date, datetime
@@ -6,18 +7,11 @@ import shutil
 import uuid
 
 import models
-from database import SessionLocal
-from dependencies import get_current_user
+# 🌟 IMPORT GET_DB DARI PUSAT KOMANDO!
+from dependencies import get_db, get_current_user
 
 # Prefix kita buat /api/driver biar sinkron sama useDriverappFlow.ts di Frontend
 router = APIRouter(prefix="/api/driver", tags=["Driver App"])
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 # Lokasi penyimpanan foto lokal (Local Storage)
 UPLOAD_DIR = "static/uploads/epod"
@@ -70,7 +64,7 @@ def get_my_route(
             status_fe = "completed"
             completed_count += 1
         elif order.status == models.DOStatus.do_assigned_to_route:
-            # Jika sequence 1, kita anggap dia yang aktif duluan (bisa disesuaikan logikanya nanti)
+            # Jika sequence 1, kita anggap dia yang aktif duluan
             status_fe = "active" if line.sequence == 1 else "pending"
 
         stops_data.append({
@@ -107,7 +101,6 @@ def update_stop_status(
     if not line:
         raise HTTPException(status_code=404, detail="ID rute tidak valid!")
     
-    # Logic tambahan jika lu mau nyatet jam tiba asli di DB bisa taruh di sini
     db.commit()
     return {"status": "success", "message": f"Status rute {line_id} berhasil diupdate."}
 
@@ -134,7 +127,7 @@ async def submit_epod(
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # 3. Simpan record di tabel tms_epod_history (sesuai models.py lu)
+    # 3. Simpan record di tabel tms_epod_history
     new_pod = models.TMSEpodHistory(
         line_id=line_id,
         status=models.DOStatus.delivered_success,

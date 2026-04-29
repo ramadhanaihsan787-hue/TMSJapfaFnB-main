@@ -11,7 +11,7 @@ from .security import (
     create_access_token,
 )
 from .constants import *
-from .enums import UserRole, DOStatus
+from models import UserRole, DOStatus
 
 __all__ = [
     # Config
