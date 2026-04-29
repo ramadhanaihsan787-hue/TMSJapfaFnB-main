@@ -127,6 +127,7 @@ class DeliveryOrder(Base):
     
     store_id = Column(Integer, ForeignKey("master_customers.store_id"), nullable=True)
     customer = relationship("MasterCustomer", back_populates="orders")
+    created_at = Column(DateTime, default=datetime.datetime.now)
 
 # ==========================================
 # 5. HASIL ROUTING OR-TOOLS

@@ -38,7 +38,6 @@ interface LiveTrackingState {
     startPolling: (intervalMs?: number) => void;
     stopPolling: () => void;
 }
-
 let pollingInterval: ReturnType<typeof setInterval> | null = null;
 
 export const useLiveTrackingStore = create<LiveTrackingState>((set, get) => ({

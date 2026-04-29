@@ -2,16 +2,15 @@
 import { api } from "../../../shared/services/apiClient";
 
 export const managerService = {
-    // Nanti buat narik data Overview KPI
+    // 🌟 SEKARANG NYEDOT DATA ASLI DARI BACKEND!
     getOverviewData: async () => {
-        // const res = await api.get('/api/manager/overview');
-        // return res.data;
-        return { status: 'success' };
+        const res = await api.get('/api/manager/overview');
+        return res.data;
     },
-    // Nanti buat export laporan Delay
+    
     exportDelayReport: async () => {
-        // const res = await api.get('/api/manager/export/delay', { responseType: 'blob' });
-        // return res.data;
-        console.log("Exporting report...");
+        // Blob dipake biar browser ngerti ini file yang mau didownload
+        const res = await api.get('/api/manager/export/delay', { responseType: 'blob' });
+        return res.data;
     }
 };

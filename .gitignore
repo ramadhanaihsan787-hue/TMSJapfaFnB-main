@@ -47,3 +47,6 @@ pnpm-debug.log*
 
 # 8. OS tambahan
 Thumbs.db
+
+# 9. Assets besar (3D)
+frontend/public/truck-model.glb

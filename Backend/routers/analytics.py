@@ -350,3 +350,36 @@ def get_rejection_analysis(
             {"reason": "Customer Tidak Ada",   "percentage": 15, "color": "bg-slate-400"},
         ]
     }
+
+# ==========================================
+# ENDPOINT: MANAGER OVERVIEW (Saran Temen Lu!)
+# ==========================================
+@router.get("/api/manager/overview")
+def get_manager_overview(
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(require_role("manager_logistik"))
+):
+    from sqlalchemy import func
+    today = datetime.now().date()
+    
+    # 1. Hitung total DO hari ini
+    total_do = db.query(models.DeliveryOrder).count()
+    
+    # 2. Hitung armada jalan
+    active_fleet = db.query(models.TMSRoutePlan).filter(
+        models.TMSRoutePlan.planning_date == today
+    ).count()
+    
+    # 3. Estimasi cost hari ini (Dummy logic)
+    cost = db.query(func.sum(models.TMSRoutePlan.total_distance_km)).scalar() or 0
+    est_cost = (cost / 5.0) * 12500 
+
+    return {
+        "status": "success",
+        "data": {
+            "total_orders": total_do,
+            "active_fleet_today": active_fleet,
+            "delayed_trucks": 0, # Taruh logic delay di sini
+            "estimated_cost_rp": int(est_cost)
+        }
+    }
