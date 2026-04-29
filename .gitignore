@@ -27,3 +27,23 @@ route_geometries/
 !.vscode/extensions.json
 .idea
 *.suo
+
+# 4. Testing & Coverage
+coverage/
+*.lcov
+
+# 5. Vite / Cache
+.vite/
+.cache/
+
+# 6. Logs tambahan
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 7. Temporary files
+*.tmp
+*.temp
+
+# 8. OS tambahan
+Thumbs.db
