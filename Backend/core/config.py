@@ -32,6 +32,17 @@ class Settings(BaseSettings):
     TOMTOM_API_KEY: str
 
     # ==========================================
+    # 🌟 VRP & ROUTING CONFIGURATION (YANG BIKIN ERROR TADI)
+    # ==========================================
+    depo_lat: float = -6.2234  # Default latitude Depo JAPFA Cikupa
+    depo_lon: float = 106.5123 # Default longitude Depo JAPFA Cikupa
+    vrp_start_time: str = "07:00"
+    vrp_end_time: str = "17:00"
+    vrp_base_drop_time_mins: int =15
+    vrp_var_drop_time_mins: int =1 # Per 10 KG tambahan, misal 20 KG = 2 menit tambahan
+    vrp_capacity_buffer_percent: int = 90 # Buffer kapasitas kendaraan, misal 90% dari max load
+
+    # ==========================================
     # FILE UPLOAD CONFIGURATION
     # ==========================================
     UPLOAD_DIR: str = "uploads"
