@@ -1,37 +1,36 @@
-import { useManagerDashboard } from '../hooks';
+import { useLocation } from 'react-router-dom';
 
-// 🌟 IMPORT SEMUA KOMPONEN UI YANG UDAH KITA PECAH
+// 🌟 IMPORT KOMPONEN UI (TANPA MANAGERTABS)
 import {
     ManagerHeader,
-    ManagerTabs,
     OverviewDashboard,
     ReturnDashboard,
     EfficiencyDashboard
 } from '../components';
 
 export default function ManagerDashboardPage() {
-    // 🌟 PANGGIL STATE TAB DARI HOOK
-    const { activeTab, setActiveTab } = useManagerDashboard();
+    const location = useLocation();
+    
+    /**
+     * 🌟 LOGIC DARI VERSI KOTOR
+     * Mengambil segmen terakhir dari URL (misal: /manager/efficiency -> efficiency)
+     * Kalau cuma /manager, default ke 'overview'
+     */
+    const activeTab = location.pathname.split('/').pop() || 'overview';
 
     return (
         <div className="flex-1 flex flex-col h-screen overflow-hidden bg-gray-50/50 dark:bg-slate-950 text-japfa-dark dark:text-white transition-colors duration-200">
             
-            {/* 🌟 HEADER ATAS */}
+            {/* 🌟 HEADER TETAP DI ATAS SEBAGAI IDENTITAS */}
             <ManagerHeader />
 
-            {/* 🌟 AREA KONTEN (BISA DI-SCROLL) */}
+            {/* 🌟 AREA KONTEN UTAMA (PLONG TANPA TAB HORIZONTAL) */}
             <main className="flex-1 overflow-y-auto custom-scrollbar">
-                <div className="p-8 pt-0 space-y-8 min-h-max pb-24 max-w-[1600px] mx-auto">
+                <div className="p-8 pt-6 space-y-8 min-h-max pb-24 max-w-[1600px] mx-auto">
 
-                    {/* 🌟 TAB NAVIGASI */}
-                    <ManagerTabs 
-                        activeTab={activeTab} 
-                        setActiveTab={setActiveTab} 
-                    />
-
-                    {/* 🌟 RENDER KONTEN SESUAI TAB */}
-                    <div className="space-y-8">
-                        {activeTab === "overview" && <OverviewDashboard />}
+                    {/* 🌟 RENDER KONTEN BERDASARKAN URL YANG DIKLIK DI SIDEBAR */}
+                    <div className="animate-fadeIn transition-all duration-500">
+                        {(activeTab === "overview" || activeTab === "manager") && <OverviewDashboard />}
                         {activeTab === "return" && <ReturnDashboard />}
                         {activeTab === "efficiency" && <EfficiencyDashboard />}
                     </div>

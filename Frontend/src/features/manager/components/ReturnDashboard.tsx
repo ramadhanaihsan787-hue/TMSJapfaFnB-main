@@ -50,7 +50,7 @@ export default function ReturnDashboard() {
                         <h3 className="text-3xl font-black text-japfa-dark dark:text-white tracking-tight">12.4K KG</h3>
                         <div className="flex items-center gap-2">
                             <p className="text-lg font-black text-japfa-orange">IDR 245.2M</p>
-                            <span className="text-[11px] font-bold text-red-500 bg-red-50 dark:bg-red-500/10 px-1.5 py-0.5 rounded-md flex items-center">
+                            <span className="text-[11px] font-bold text-red-500 bg-red-50 dark:bg-red-500/10 px-1.5 py-0.5 rounded-md flex items-center shadow-sm">
                                 <TrendingUp className="w-3 h-3 mr-1" /> 2.4%
                             </span>
                         </div>
@@ -73,7 +73,7 @@ export default function ReturnDashboard() {
                         <h3 className="text-3xl font-black text-japfa-dark dark:text-white tracking-tight">4.2K KG</h3>
                         <div className="flex items-center gap-2">
                             <p className="text-lg font-black text-japfa-orange">IDR 84.1M</p>
-                            <span className="text-[11px] font-bold text-green-500 bg-green-50 dark:bg-green-500/10 px-1.5 py-0.5 rounded-md flex items-center">
+                            <span className="text-[11px] font-bold text-green-500 bg-green-50 dark:bg-green-500/10 px-1.5 py-0.5 rounded-md flex items-center shadow-sm">
                                 <TrendingDown className="w-3 h-3 mr-1" /> 0.8%
                             </span>
                         </div>
@@ -96,7 +96,7 @@ export default function ReturnDashboard() {
                         <h3 className="text-3xl font-black text-japfa-dark dark:text-white tracking-tight">1.5K KG</h3>
                         <div className="flex items-center gap-2">
                             <p className="text-lg font-black text-japfa-orange">IDR 32.5M</p>
-                            <span className="text-[11px] font-bold text-green-500 bg-green-50 dark:bg-green-500/10 px-1.5 py-0.5 rounded-md flex items-center">
+                            <span className="text-[11px] font-bold text-green-500 bg-green-50 dark:bg-green-500/10 px-1.5 py-0.5 rounded-md flex items-center shadow-sm">
                                 <TrendingDown className="w-3 h-3 mr-1" /> 1.1%
                             </span>
                         </div>
@@ -107,19 +107,16 @@ export default function ReturnDashboard() {
 
             {/* 2. MIDDLE SECTION: DONUT CHART & FLEET PERFORMANCE */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Donut Chart (Visual: High Detail SVG) */}
+                {/* Donut Chart */}
                 <div className="bg-white dark:bg-slate-900 p-8 rounded-xl shadow-sm border border-gray-100 dark:border-white/10">
                     <h2 className="text-xl font-black text-japfa-dark dark:text-white mb-1 uppercase tracking-tight">Return Causes Distribution</h2>
                     <p className="text-[11px] text-japfa-gray dark:text-gray-500 font-bold uppercase tracking-widest mb-8">Weight percentage analysis by root cause</p>
                     <div className="flex flex-col items-center">
                         <div className="relative w-56 h-56 mb-8">
-                            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                            <svg className="w-full h-full transform -rotate-90 drop-shadow-md" viewBox="0 0 36 36">
                                 <circle className="stroke-gray-100 dark:stroke-white/5" cx="18" cy="18" r="15.9155" fill="transparent" strokeWidth="3"></circle>
-                                {/* Quality: 68.5% */}
                                 <circle className="stroke-japfa-orange" cx="18" cy="18" r="15.9155" fill="transparent" strokeWidth="5" strokeDasharray="68.5 31.5" strokeDashoffset="0"></circle>
-                                {/* SKU: 23.1% */}
                                 <circle className="stroke-japfa-navy dark:stroke-blue-400" cx="18" cy="18" r="15.9155" fill="transparent" strokeWidth="5" strokeDasharray="23.1 76.9" strokeDashoffset="-68.5"></circle>
-                                {/* Rejection: 8.4% */}
                                 <circle className="stroke-japfa-gray dark:stroke-gray-600" cx="18" cy="18" r="15.9155" fill="transparent" strokeWidth="5" strokeDasharray="8.4 91.6" strokeDashoffset="-91.6"></circle>
                             </svg>
                             <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -142,11 +139,18 @@ export default function ReturnDashboard() {
                                 </div>
                                 <span className="text-md font-black text-japfa-dark dark:text-white">23.1%</span>
                             </div>
+                            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-950 rounded-lg border border-gray-100 dark:border-white/5 transition-all hover:translate-x-1">
+                                <div className="flex items-center gap-3">
+                                    <span className="w-3 h-3 rounded-full bg-japfa-gray dark:bg-gray-600"></span>
+                                    <span className="text-xs font-black text-japfa-gray dark:text-gray-400 uppercase tracking-tighter">Cust. Rejection</span>
+                                </div>
+                                <span className="text-md font-black text-japfa-dark dark:text-white">8.4%</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Fleet Performance List (Visual: Compact & Premium) */}
+                {/* Fleet Performance List */}
                 <div className="bg-white dark:bg-slate-900 p-8 rounded-xl shadow-sm border border-gray-100 dark:border-white/10">
                     <h2 className="text-xl font-black text-japfa-dark dark:text-white mb-1 uppercase tracking-tight">Fleet Incident Performance</h2>
                     <p className="text-[11px] text-japfa-gray dark:text-gray-500 font-bold uppercase tracking-widest mb-6">Units with highest return impact</p>
@@ -154,12 +158,12 @@ export default function ReturnDashboard() {
                         {fleetIncidentData.map((fleet, idx) => (
                             <div key={idx} className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
                                 idx === 0 
-                                ? 'bg-orange-50/50 dark:bg-orange-500/5 border-orange-100 dark:border-orange-500/20' 
+                                ? 'bg-orange-50/50 dark:bg-orange-500/5 border-orange-100 dark:border-orange-500/20 shadow-sm' 
                                 : 'bg-white dark:bg-slate-950 border-gray-100 dark:border-white/5 hover:border-gray-200 dark:hover:border-white/20'
                             }`}>
                                 <div className="flex items-center gap-4">
                                     <span className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${
-                                        idx === 0 ? 'bg-japfa-orange text-white' : 'bg-gray-100 dark:bg-white/10 text-japfa-gray dark:text-gray-400'
+                                        idx === 0 ? 'bg-japfa-orange text-white shadow-md shadow-japfa-orange/30' : 'bg-gray-100 dark:bg-white/10 text-japfa-gray dark:text-gray-400'
                                     }`}>{idx + 1}</span>
                                     <div>
                                         <p className="font-black text-japfa-dark dark:text-white text-lg tracking-tight">{fleet.plate}</p>
@@ -183,7 +187,7 @@ export default function ReturnDashboard() {
                 </div>
             </div>
 
-            {/* 3. BOTTOM SECTION: AUDIT TABLE (Visual: Detailed Actions & Headers) */}
+            {/* 3. BOTTOM SECTION: AUDIT TABLE */}
             <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-white/10 overflow-hidden">
                 <div className="p-6 border-b border-gray-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-center gap-4">
                     <div>
@@ -214,7 +218,7 @@ export default function ReturnDashboard() {
                                 </div>
                             )}
                         </div>
-                        <button className="px-4 py-2 bg-japfa-navy dark:bg-blue-600 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-japfa-dark transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20">
+                        <button className="px-4 py-2 bg-japfa-navy dark:bg-blue-600 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-japfa-dark transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95">
                             <Download className="w-3.5 h-3.5" /> Export PDF
                         </button>
                     </div>
@@ -244,7 +248,7 @@ export default function ReturnDashboard() {
                                     <td className="py-4 px-6 text-[11px] font-bold text-japfa-dark dark:text-gray-300">{row.product}</td>
                                     <td className="py-4 px-6 font-black text-japfa-dark dark:text-white">{row.weight}</td>
                                     <td className="py-4 px-6 text-[11px] font-medium italic text-japfa-gray dark:text-gray-500">{row.reason}</td>
-                                    <td className="py-4 px-6">
+                                    <td className="py-4 px-6 text-center">
                                         <span className={`px-2.5 py-1 text-[9px] font-black rounded-full uppercase tracking-tighter ${row.color}`}>
                                             {row.status}
                                         </span>
@@ -259,15 +263,15 @@ export default function ReturnDashboard() {
                                         
                                         {openActionId === idx && (
                                             <div className="absolute right-6 top-12 w-48 bg-white dark:bg-slate-800 border border-gray-100 dark:border-white/10 rounded-xl shadow-2xl z-[100] overflow-hidden text-left animate-in fade-in zoom-in-95 duration-200">
-                                                <div className="p-1">
-                                                    <button className="w-full text-left px-4 py-2.5 text-[11px] font-black text-japfa-dark dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 flex items-center gap-3 uppercase tracking-wider">
+                                                <div className="p-1" role="menu">
+                                                    <button className="w-full text-left px-4 py-2.5 text-[11px] font-black text-japfa-dark dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 flex items-center gap-3 uppercase tracking-wider transition-colors">
                                                         <Eye className="w-3.5 h-3.5 text-blue-500" /> View Report
                                                     </button>
-                                                    <button className="w-full text-left px-4 py-2.5 text-[11px] font-black text-japfa-dark dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 flex items-center gap-3 uppercase tracking-wider">
+                                                    <button className="w-full text-left px-4 py-2.5 text-[11px] font-black text-japfa-dark dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 flex items-center gap-3 uppercase tracking-wider transition-colors">
                                                         <FileText className="w-3.5 h-3.5 text-orange-500" /> Download PDF
                                                     </button>
                                                     <div className="h-px bg-gray-100 dark:bg-white/5 my-1"></div>
-                                                    <button className="w-full text-left px-4 py-2.5 text-[11px] font-black text-japfa-orange hover:bg-orange-50 dark:hover:bg-orange-500/10 flex items-center gap-3 uppercase tracking-wider">
+                                                    <button className="w-full text-left px-4 py-2.5 text-[11px] font-black text-japfa-orange hover:bg-orange-50 dark:hover:bg-orange-500/10 flex items-center gap-3 uppercase tracking-wider transition-colors">
                                                         <RefreshCcw className="w-3.5 h-3.5" /> Re-Process
                                                     </button>
                                                 </div>

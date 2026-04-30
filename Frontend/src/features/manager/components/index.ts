@@ -1,5 +1,4 @@
 export { default as ManagerHeader } from './ManagerHeader';
-export { default as ManagerTabs } from './ManagerTabs';
 export { default as KPICard } from './ManagerKPICards';
 export { default as DelayTable } from './DelayTable';
 export { default as MonitoringPanel } from './MonitoringPanel';
