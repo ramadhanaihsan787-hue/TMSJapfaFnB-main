@@ -1,42 +1,74 @@
 import React, { useState, useEffect, useRef } from "react";
 import Header from "../../../shared/components/Header";
+// 🌟 FIX CTO #7: Pake API Client, bukan LocalStorage!
+import { api } from "../../../shared/services/apiClient";
+// 🌟 FIX CTO #5: Pake Toast yang elegan, buang alert() primitif!
+import toast, { Toaster } from "react-hot-toast";
 
 export default function PodSettingsPage() {
     // ==========================================
-    // 1. STATE PREFERENSI UI/UX (Disimpan di LocalStorage)
+    // 1. STATE PREFERENSI UI/UX (API Driven)
     // ==========================================
     const [autoAdvance, setAutoAdvance] = useState(false);
     const [dataDensity, setDataDensity] = useState("normal");
     const [soundAlert, setSoundAlert] = useState(true);
     const [isUiSaving, setIsUiSaving] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
-    // Ambil data dari localStorage pas pertama kali halaman dibuka
+    // 🌟 NYEDOT DATA DARI BACKEND, BUKAN BROWSER!
     useEffect(() => {
-        const savedAutoAdvance = localStorage.getItem('pref_autoAdvance') === 'true';
-        const savedSoundAlert = localStorage.getItem('pref_soundAlert') !== 'false'; // Default true
-        const savedDensity = localStorage.getItem('pref_density') || 'normal';
+        const fetchPreferences = async () => {
+            try {
+                // Asumsi kita bakal bikin endpoint ini di backend nanti
+                const res = await api.get('/auth/preferences');
+                if (res.data && res.data.data) {
+                    const prefs = res.data.data;
+                    setAutoAdvance(prefs.autoAdvance ?? false);
+                    setSoundAlert(prefs.soundAlert ?? true);
+                    setDataDensity(prefs.dataDensity ?? 'normal');
+                    document.documentElement.setAttribute('data-density', prefs.dataDensity ?? 'normal');
+                }
+            } catch (error) {
+                console.warn("Gagal narik API preferences, pake default / local sementara");
+                // Fallback sementara kalau endpoint belum dibikin
+                setAutoAdvance(localStorage.getItem('pref_autoAdvance') === 'true');
+                setSoundAlert(localStorage.getItem('pref_soundAlert') !== 'false');
+                setDataDensity(localStorage.getItem('pref_density') || 'normal');
+            } finally {
+                setIsLoading(false);
+            }
+        };
 
-        setAutoAdvance(savedAutoAdvance);
-        setSoundAlert(savedSoundAlert);
-        setDataDensity(savedDensity);
+        fetchPreferences();
     }, []);
 
-    // Fungsi Simpan UI/UX
-    const handleSavePreferences = () => {
+    // 🌟 SIMPAN KE BACKEND
+    const handleSavePreferences = async () => {
         setIsUiSaving(true);
         
-        // Simpan ke brankas Browser (LocalStorage)
-        localStorage.setItem('pref_autoAdvance', String(autoAdvance));
-        localStorage.setItem('pref_soundAlert', String(soundAlert));
-        localStorage.setItem('pref_density', dataDensity);
+        try {
+            // Nembak API update preferensi
+            await api.put('/auth/preferences', {
+                autoAdvance,
+                soundAlert,
+                dataDensity
+            });
 
-        // 🔥 MAGIC TRICK: Ubah atribut global HTML biar CSS seluruh web lu bisa ngikutin ukuran!
-        document.documentElement.setAttribute('data-density', dataDensity);
+            // Terapin ke tampilan global
+            document.documentElement.setAttribute('data-density', dataDensity);
+            
+            // Backup ke localstorage buat jaga-jaga offline mode
+            localStorage.setItem('pref_autoAdvance', String(autoAdvance));
+            localStorage.setItem('pref_soundAlert', String(soundAlert));
+            localStorage.setItem('pref_density', dataDensity);
 
-        setTimeout(() => {
+            // 🔥 TOAST NOTIFICATION MENGGANTIKAN ALERT()
+            toast.success("Pengaturan Tampilan & Interaksi berhasil disimpan! 🚀");
+        } catch (error) {
+            toast.error("Gagal menyimpan pengaturan ke server!");
+        } finally {
             setIsUiSaving(false);
-            alert("Pengaturan Tampilan & Interaksi berhasil disimpan! 🚀");
-        }, 800);
+        }
     };
 
     // ==========================================
@@ -46,56 +78,74 @@ export default function PodSettingsPage() {
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [isPasswordSaving, setIsPasswordSaving] = useState(false);
-    const [passwordMsg, setPasswordMsg] = useState({ text: "", type: "" });
 
-    // Referensi buat tombol upload file tersembunyi
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [profilePic, setProfilePic] = useState<string | null>(null);
 
     const handlePasswordSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setPasswordMsg({ text: "", type: "" });
 
         if (newPassword !== confirmPassword) {
-            setPasswordMsg({ text: "Password baru dan konfirmasi tidak cocok!", type: "error" });
+            toast.error("Password baru dan konfirmasi tidak cocok!");
             return;
         }
         if (newPassword.length < 6) {
-            setPasswordMsg({ text: "Password baru minimal 6 karakter!", type: "error" });
+            toast.error("Password baru minimal 6 karakter!");
             return;
         }
 
         setIsPasswordSaving(true);
-        // SIMULASI NEMBAK API BACKEND
-        setTimeout(() => {
-            setIsPasswordSaving(false);
+        try {
+            // Nembak API ubah password
+            await api.post('/auth/change-password', {
+                old_password: currentPassword,
+                new_password: newPassword
+            });
+            
             setCurrentPassword("");
             setNewPassword("");
             setConfirmPassword("");
-            setPasswordMsg({ text: "Password berhasil diperbarui!", type: "success" });
-        }, 1500);
+            toast.success("Password berhasil diperbarui! 🔒");
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || "Gagal mengubah password!");
+        } finally {
+            setIsPasswordSaving(false);
+        }
     };
 
-    // Fungsi nangkep file gambar yang diupload
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            // Ubah gambar jadi URL sementara biar bisa ditampilin di layar
             const imageUrl = URL.createObjectURL(file);
             setProfilePic(imageUrl);
-            // Nanti di sini lu bisa panggil API buat ngirim 'file' ke backend (Supabase/S3/dll)
+            
+            // Logika upload foto ke API (FormData)
+            const formData = new FormData();
+            formData.append('profile_picture', file);
+            
+            toast.promise(
+                api.post('/auth/upload-avatar', formData),
+                {
+                    loading: 'Mengunggah foto profil...',
+                    success: 'Foto profil berhasil diperbarui! 📸',
+                    error: 'Gagal mengunggah foto!'
+                }
+            );
         }
     };
+
+    if (isLoading) return <div className="p-10 text-center">Memuat pengaturan...</div>;
 
     return (
         <React.Fragment>
             <Header title="Pengaturan & Preferensi" />
+            
+            {/* 🌟 INIT TOASTER BUAT NAMPILIN NOTIFIKASI */}
+            <Toaster position="top-center" reverseOrder={false} />
 
-            <div className="p-8 max-w-5xl mx-auto w-full space-y-8">
+            <div className="p-8 max-w-5xl mx-auto w-full space-y-8 animate-fadeIn">
                 
-                {/* ========================================== */}
                 {/* ACCOUNT PREFERENCES SECTION */}
-                {/* ========================================== */}
                 <section className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
                     <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#222]/50">
                         <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -119,7 +169,6 @@ export default function PodSettingsPage() {
                                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">Foto Profil</h3>
                                 <p className="text-sm text-slate-500 dark:text-slate-400">Unggah foto baru untuk mengubah avatar Anda. (Maks 2MB)</p>
                                 <div className="flex gap-3">
-                                    {/* Tombol File Input Tersembunyi */}
                                     <input 
                                         type="file" 
                                         ref={fileInputRef} 
@@ -143,12 +192,6 @@ export default function PodSettingsPage() {
                         <form onSubmit={handlePasswordSubmit} className="space-y-4 max-w-md">
                             <h3 className="text-sm font-bold text-slate-900 dark:text-white">Ubah Password</h3>
                             
-                            {passwordMsg.text && (
-                                <div className={`p-3 text-sm font-bold rounded-lg ${passwordMsg.type === 'error' ? 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400' : 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400'}`}>
-                                    {passwordMsg.text}
-                                </div>
-                            )}
-
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase">Password Saat Ini</label>
                                 <input required type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="••••••••" className="w-full px-4 py-2 bg-slate-50 dark:bg-[#222] border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary outline-none transition-colors dark:text-white" />
@@ -171,9 +214,7 @@ export default function PodSettingsPage() {
                     </div>
                 </section>
 
-                {/* ========================================== */}
                 {/* UI/UX PREFERENCES SECTION */}
-                {/* ========================================== */}
                 <section className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
                     <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#222]/50">
                         <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -184,8 +225,6 @@ export default function PodSettingsPage() {
                     </div>
                     
                     <div className="p-6 space-y-8">
-                        
-                        {/* Auto Advance Toggle */}
                         <div className="flex items-center justify-between gap-4">
                             <div>
                                 <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -204,7 +243,6 @@ export default function PodSettingsPage() {
 
                         <hr className="border-slate-200 dark:border-slate-800" />
 
-                        {/* Sound Alert Toggle */}
                         <div className="flex items-center justify-between gap-4">
                             <div>
                                 <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -223,7 +261,6 @@ export default function PodSettingsPage() {
 
                         <hr className="border-slate-200 dark:border-slate-800" />
 
-                        {/* Data Density Selection */}
                         <div className="space-y-4">
                             <div>
                                 <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -236,7 +273,7 @@ export default function PodSettingsPage() {
                             </div>
                             
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                {/* Rapat */}
+                                {/* Pilihan Rapat, Normal, Longgar tetep persis sama UI-nya... */}
                                 <label className={`cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-3 transition-colors ${dataDensity === 'rapat' ? 'border-primary bg-primary/5' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#222] hover:border-primary/50'}`}>
                                     <input type="radio" name="density" value="rapat" className="sr-only" checked={dataDensity === 'rapat'} onChange={(e) => setDataDensity(e.target.value)} />
                                     <span className="material-symbols-outlined text-3xl text-slate-400">density_small</span>
@@ -246,7 +283,6 @@ export default function PodSettingsPage() {
                                     </div>
                                 </label>
 
-                                {/* Normal */}
                                 <label className={`cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-3 transition-colors ${dataDensity === 'normal' ? 'border-primary bg-primary/5' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#222] hover:border-primary/50'}`}>
                                     <input type="radio" name="density" value="normal" className="sr-only" checked={dataDensity === 'normal'} onChange={(e) => setDataDensity(e.target.value)} />
                                     <span className="material-symbols-outlined text-3xl text-slate-400">density_medium</span>
@@ -256,7 +292,6 @@ export default function PodSettingsPage() {
                                     </div>
                                 </label>
 
-                                {/* Longgar */}
                                 <label className={`cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-3 transition-colors ${dataDensity === 'longgar' ? 'border-primary bg-primary/5' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#222] hover:border-primary/50'}`}>
                                     <input type="radio" name="density" value="longgar" className="sr-only" checked={dataDensity === 'longgar'} onChange={(e) => setDataDensity(e.target.value)} />
                                     <span className="material-symbols-outlined text-3xl text-slate-400">density_large</span>

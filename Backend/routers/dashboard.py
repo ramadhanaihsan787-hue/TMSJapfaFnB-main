@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from datetime import date, datetime
 
 import models
-# 🌟 IMPORT GET_DB DAN GET_SETTINGS DARI PUSAT KOMANDO!
+import schemas # 🌟 SUNTIKAN PYDANTIC!
 from dependencies import get_db, get_settings, get_current_user
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
@@ -12,16 +12,14 @@ router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
 # ==========================================
 # ENDPOINT 1: LIVE TRACKING
 # ==========================================
-@router.get("/live-tracking")
+@router.get("/live-tracking", response_model=schemas.LiveTrackingResponse) # 🌟 SUNTIK SINI
 def get_live_tracking(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
     today = date.today()
-    # 🌟 FIX: Panggil get_settings dari dependencies tanpa parameter db
     settings = get_settings()
 
-    # Koordinat depo dari settings (bukan hardcode!)
     DEPO_LAT = settings.depo_lat
     DEPO_LON = settings.depo_lon
 
@@ -43,14 +41,12 @@ def get_live_tracking(
             models.HRDriver.driver_id == route.driver_id
         ).first()
 
-        # Default posisi = depo
         lat = DEPO_LAT
         lon = DEPO_LON
         status_text = "Standby di Gudang"
         is_delayed = False
         delay_minutes = 0
 
-        # Cari stop pertama
         next_stop = db.query(models.TMSRouteLine).filter(
             models.TMSRouteLine.route_id == route.route_id,
             models.TMSRouteLine.sequence == 1
@@ -62,7 +58,6 @@ def get_live_tracking(
             ).first()
 
             if order and order.latitude and order.longitude:
-                # Simulasi: posisi di tengah jalan menuju tujuan
                 lat = float(order.latitude) + 0.005
                 lon = float(order.longitude) - 0.005
                 status_text = f"Menuju: {order.customer_name}"
@@ -83,16 +78,16 @@ def get_live_tracking(
             "status": status_text,
             "isDelayed": is_delayed,
             "delayMinutes": max(0, delay_minutes),
-            "routeId": route.route_id
+            "routeId": str(route.route_id)
         })
 
-    # Dummy kalau tidak ada rute hari ini
     if not trucks:
         trucks = [
             {
                 "id": "B 9044 JXS", "driver": "Budi Santoso",
                 "lat": DEPO_LAT + 0.01, "lon": DEPO_LON + 0.01,
-                "status": "Idle", "isDelayed": False, "delayMinutes": 0
+                "status": "Idle", "isDelayed": False, "delayMinutes": 0,
+                "routeId": "dummy-1"
             }
         ]
 
@@ -101,13 +96,13 @@ def get_live_tracking(
 # ==========================================
 # ENDPOINT 2: REAL-TIME ALERTS
 # ==========================================
-@router.get("/alerts")
+@router.get("/alerts", response_model=schemas.AlertResponse) # 🌟 SUNTIK SINI
 def get_realtime_alerts(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
     today = date.today()
-    settings = get_settings() # 🌟 FIX: Pake versi bersih
+    settings = get_settings()
     now = datetime.now()
     now_minutes = now.hour * 60 + now.minute
 
@@ -117,7 +112,6 @@ def get_realtime_alerts(
         models.TMSRoutePlan.planning_date == today
     ).all()
 
-    # Deteksi keterlambatan
     for route in routes_today:
         first_stop = db.query(models.TMSRouteLine).filter(
             models.TMSRouteLine.route_id == route.route_id,
@@ -145,7 +139,6 @@ def get_realtime_alerts(
                 "bgColor": "bg-orange-50 dark:bg-orange-500/10 border-l-4 border-orange-500"
             })
 
-    # Status aman
     if not alerts:
         alerts.append({
             "title": "OTIF Target Aman ✅",
@@ -156,7 +149,6 @@ def get_realtime_alerts(
             "bgColor": "hover:bg-slate-50 dark:hover:bg-slate-800/50 border-l-4 border-transparent"
         })
 
-    # System status
     alerts.append({
         "title": "Sistem AI Online 🟢",
         "desc": "Backend Uvicorn, PostgreSQL & OR-Tools berjalan normal.",
@@ -178,7 +170,7 @@ def dashboard_hourly_volume(
     current_user: models.User = Depends(get_current_user)
 ):
     from routers.analytics import get_delivery_volume
-    return get_delivery_volume(period, db, current_user)
+    return get_delivery_volume(period, period, db, current_user)
 
 @router.get("/fleet-utilization")
 def dashboard_fleet_utilization(
@@ -187,9 +179,8 @@ def dashboard_fleet_utilization(
     current_user: models.User = Depends(get_current_user)
 ):
     from routers.analytics import get_fleet_utilization
-    return get_fleet_utilization(period, db, current_user)
+    return get_fleet_utilization(period, period, db, current_user)
 
-# 🌟 FIX: Path diubah jadi /rejections aja (biar ga double dashboard)
 @router.get("/rejections")
 def dashboard_rejections(
     start_date: str = None, 
@@ -197,9 +188,7 @@ def dashboard_rejections(
     db: Session = Depends(get_db), 
     current_user: models.User = Depends(get_current_user)
 ):
-    # 🌟 FIX: Panggil fungsi "hantu"-nya biar ga crash!
     from routers.analytics import get_rejection_analysis 
-    
     return get_rejection_analysis(
         startDate=start_date, 
         endDate=end_date, 

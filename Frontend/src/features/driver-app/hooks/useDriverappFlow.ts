@@ -1,58 +1,63 @@
-import { useState, useEffect } from 'react';
+// src/features/driver-app/hooks/useDriverappFlow.ts
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { driverappService, type RouteStop, type DriverTripResponse } from '../services/driverappService';
+import { driverappService, type RouteStop } from '../services/driverappService';
+import { useDriverStore } from '../../../store/useDriverStore';
 
 export const useDriverappFlow = () => {
     const navigate = useNavigate();
     
-    // Global States biar data sinkron antar halaman app driver
-    const [tripData, setTripData] = useState<DriverTripResponse | null>(null);
-    const [activeStop, setActiveStop] = useState<RouteStop | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
+    // 🌟 SEKARANG NYEDOT DATA DARI ZUSTAND, BUKAN USESTATE LOKAL!
+    const { 
+        tripData, 
+        activeStop, 
+        isLoading, 
+        setActiveStop, 
+        fetchMyRoute 
+    } = useDriverStore();
 
-    // Ambil rute supir pas pertama kali buka
-    const fetchMyRoute = async () => {
-        setIsLoading(true);
-        try {
-            const data = await driverappService.getMyRoute();
-            setTripData(data);
-            // Cari stop yang statusnya lagi 'active'
-            const current = data.stops.find(s => s.status === 'active');
-            if (current) setActiveStop(current);
-        } catch (err) {
-            console.error("Gagal menarik rute supir:", err);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
+    // Otomatis tarik data rute HANYA kalau tripData-nya masih kosong
+    // Biar ngga spam API setiap ganti halaman
     useEffect(() => {
-        fetchMyRoute();
-    }, []);
+        if (!tripData && !isLoading) {
+            fetchMyRoute();
+        }
+    }, [tripData, isLoading, fetchMyRoute]);
 
     return {
-        // Data States
+        // Data States (Langsung lempar dari Zustand)
         tripData,
         stops: tripData?.stops || [],
         activeStop,
         isLoading,
         
-        // Navigation & Flow Actions (Fitur lu ngga ada yang dikurangin!)
+        // Navigation & Flow Actions
         startRoute: () => navigate('/driver/routes'),
         
         viewStopDetail: (stop: RouteStop) => {
-            setActiveStop(stop); // Simpan stop mana yang diklik
+            setActiveStop(stop); // 🌟 Nyimpen stop ke Zustand (Global)
             navigate('/driver/detail');
         },
         
         arriveAtLocation: async () => {
             if (activeStop) {
+                // Tembak API bahwa supir udah sampe
                 await driverappService.updateStopStatus(activeStop.id, 'arrived');
+                
+                // Refresh data rute dari backend biar status 'completed'-nya update
+                await fetchMyRoute(); 
+                
                 navigate('/driver/pod');
             }
         },
         
-        submitPod: () => navigate('/driver/summary'),
+        submitPod: async () => {
+            // Pas selesai ngirim foto, tarik ulang data dari backend
+            // Biar rute selanjutnya otomatis berubah jadi 'active'
+            await fetchMyRoute(); 
+            navigate('/driver/summary');
+        },
+
         endTrip: () => navigate('/driver'),
         goToHistory: () => navigate('/driver') 
     };

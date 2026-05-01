@@ -2,6 +2,10 @@
 import requests
 import time
 import math
+import logging # 🌟 FIX CTO: Pakai proper logging, bukan print!
+
+# Setup logger biar rapi
+logger = logging.getLogger(__name__)
 
 def calculate_haversine(lat1, lon1, lat2, lon2) -> int:
     """Jarak garis lurus bumi dalam meter"""
@@ -24,7 +28,7 @@ def build_tomtom_matrix(locations: list, api_key: str):
     }
 
     try:
-        print("🗺️  Menembak TomTom Matrix API...")
+        logger.info("🗺️ Menembak TomTom Matrix API...")
         response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=15)
         response.raise_for_status()
         matrix_result = None
@@ -58,22 +62,22 @@ def build_tomtom_matrix(locations: list, api_key: str):
                 else:
                     distance_matrix[o_idx][d_idx], time_matrix[o_idx][d_idx] = 999999, 999
 
-        print("✅ TomTom Matrix berhasil!")
+        logger.info("✅ TomTom Matrix berhasil!")
         return distance_matrix, time_matrix
 
     except Exception as e:
-        print(f"⚠️  TomTom gagal: {e} → Switch ke Haversine")
+        logger.warning(f"⚠️ TomTom gagal: {e} → Switch ke Haversine")
         return None, None
 
 def build_haversine_matrix(locations: list):
     """Fallback matrix pakai Haversine formula"""
-    print("🔄 Pakai Haversine fallback...")
+    logger.info("🔄 Pakai Haversine fallback...")
     n = len(locations)
     distance_matrix, time_matrix = [[0] * n for _ in range(n)], [[0] * n for _ in range(n)]
     for i in range(n):
         for j in range(n):
             if i != j:
-                dist = calculate_haversine(locations[i]["lat"], locations[i]["lon"], locations[j]["lat"], locations[j]["lon"])
+                dist = calculate_haversine(locations[i]["lat"], locations[i]["lon"], locations[j]["lat"], locations[j]["lat"])
                 distance_matrix[i][j] = dist
                 time_matrix[i][j] = int(dist / 400) 
     return distance_matrix, time_matrix
@@ -87,5 +91,5 @@ def get_road_geometry(route_indices: list, locations: list, api_key: str) -> lis
         if res.status_code == 200:
             return [[p['latitude'], p['longitude']] for leg in res.json()['routes'][0]['legs'] for p in leg['points']]
     except Exception as e:
-        print(f"⚠️  Gagal ambil geometry: {e}")
+        logger.error(f"⚠️ Gagal ambil geometry: {e}")
     return []

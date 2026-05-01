@@ -1,5 +1,10 @@
+# services/vrp_solver.py
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
+import logging
+
+# 🌟 FIX CTO: Setup Logger
+logger = logging.getLogger(__name__)
 
 def solve_vrp(distance_matrix, time_matrix, demands,
               num_vehicles, vehicle_capacities,
@@ -39,8 +44,6 @@ def solve_vrp(distance_matrix, time_matrix, demands,
         True, 
         dimension_name)
     distance_dimension = routing.GetDimensionOrDie(dimension_name)
-    
-    # Denda ini (10) cukup buat memastikan rute ngga ada yang terlalu jauh
     distance_dimension.SetGlobalSpanCostCoefficient(10) 
 
     # ==========================================
@@ -58,17 +61,11 @@ def solve_vrp(distance_matrix, time_matrix, demands,
         True, 
         'Capacity'
     )
-    
-    # 🌟 OPTIMASI: Dihapus. Jangan maksain AI buat ngebagi muatan SAMA RATA. 
-    # Biarin aja AI ngisi truk 1 sampe penuh, baru buka truk 2. Lebih efisien.
-    # capacity_dimension = routing.GetDimensionOrDie('Capacity')
-    # capacity_dimension.SetGlobalSpanCostCoefficient(5) <-- DIHAPUS
 
     # ==========================================
     # 3. DIMENSI WAKTU (TIME WINDOWS)
     # ==========================================
     def time_callback(from_index, to_index):
-        # 🌟 FIXED: Spasi (Indentation) udah dibenerin! Ngga bakal error lagi.
         from_node = manager.IndexToNode(from_index)
         to_node = manager.IndexToNode(to_index)
 
@@ -78,12 +75,10 @@ def solve_vrp(distance_matrix, time_matrix, demands,
             return int(travel_time)
 
         qty = data['demands'][to_node]
-
-        # 🌟 DINAMIS dari System Settings
         tambahan_waktu_qty = (qty * var_drop_time) / 10.0
 
         if is_mall_list[to_node]:
-            service_time = 60 + tambahan_waktu_qty  # Mall tetap 60 base
+            service_time = 60 + tambahan_waktu_qty 
         else:
             service_time = base_drop_time + tambahan_waktu_qty
 
@@ -100,20 +95,17 @@ def solve_vrp(distance_matrix, time_matrix, demands,
     )
     time_dimension = routing.GetDimensionOrDie('Time')
 
-    # Setting Time Windows buat toko-toko
     for location_idx, time_window in enumerate(data['time_windows']):
         if location_idx == data['depot']: continue
         index = manager.NodeToIndex(location_idx)
         time_dimension.CumulVar(index).SetRange(time_window[0], time_window[1])
 
-    # Setting Time Windows buat truk (Jam kerja depot)
     for vehicle_id in range(data['num_vehicles']):
         index = routing.Start(vehicle_id)
         time_dimension.CumulVar(index).SetRange(data['time_windows'][0][0], data['time_windows'][0][1])
         index = routing.End(vehicle_id)
         time_dimension.CumulVar(index).SetRange(data['time_windows'][0][0], data['time_windows'][0][1])
 
-    # Insting AI biar truk beres secepet mungkin
     for i in range(data['num_vehicles']):
         routing.AddVariableMinimizedByFinalizer(time_dimension.CumulVar(routing.Start(i)))
         routing.AddVariableMinimizedByFinalizer(time_dimension.CumulVar(routing.End(i)))
@@ -121,12 +113,9 @@ def solve_vrp(distance_matrix, time_matrix, demands,
     # ==========================================
     # 4. STRATEGI KEPUTUSAN & PENALTY
     # ==========================================
-    # 🌟 OPTIMASI: Diturunin dari 5000 ke 1000. 
-    # Biar AI mikir: "Oke, keluarin truk baru emang mahal, tapi kalo dipaksa 1 truk malah telat/kena Time Window, mending keluarin truk baru aja."
     for i in range(data['num_vehicles']):
         routing.SetFixedCostOfVehicle(1000, i) 
 
-    # Denda Drop (Toko ngga kebagian)
     penalty = 100000 
     for node in range(1, len(data['distance_matrix'])):
         routing.AddDisjunction([manager.NodeToIndex(node)], penalty)
@@ -136,7 +125,7 @@ def solve_vrp(distance_matrix, time_matrix, demands,
     search_parameters.local_search_metaheuristic = (routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
     search_parameters.time_limit.seconds = 60
 
-    print("OR-Tools: Memulai kalkulasi VRP Smart Balancing...")
+    logger.info("OR-Tools: Memulai kalkulasi VRP Smart Balancing...")
     solution = routing.SolveWithParameters(search_parameters)
 
     if solution:
@@ -157,5 +146,5 @@ def solve_vrp(distance_matrix, time_matrix, demands,
                 
         return results
     else:
-        print("OR-Tools: GAGAL MENEMUKAN SOLUSI! Coba cek kapasitas atau Time Windows.")
+        logger.error("OR-Tools: GAGAL MENEMUKAN SOLUSI! Coba cek kapasitas atau Time Windows.")
         return None

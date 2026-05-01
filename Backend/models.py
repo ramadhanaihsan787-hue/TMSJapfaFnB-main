@@ -186,6 +186,10 @@ class TMSEpodHistory(Base):
     gps_location_lat = Column(Numeric(10, 8))
     gps_location_lon = Column(Numeric(11, 8))
     
+    qty_delivered = Column(Float, default=0.0) # Berapa KG yang nyampe ke toko
+    qty_return = Column(Float, default=0.0)    # Berapa KG yang ditolak toko
+    qty_damaged = Column(Float, default=0.0)   # Berapa KG yang rusak
+    
     route_line = relationship("TMSRouteLine", back_populates="epod")
 
 # ==========================================

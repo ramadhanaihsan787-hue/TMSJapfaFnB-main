@@ -1,31 +1,68 @@
+import { useState, useEffect } from 'react';
+// 🌟 IMPORT API KITA!
+import { api } from '../../../shared/services/apiClient';
+
 export default function MonitoringPanel() {
-    const alerts = [
-        { title: "Route Congestion", time: "2m ago", desc: "Heavy traffic detected on Jakarta-Cikampek KM 42.", icon: "report", color: "border-red-500" },
-        { title: "Fleet Delay", time: "15m ago", desc: "Unit B-9281-UFA delayed due to severe weather.", icon: "warning", color: "border-orange-500" },
-        { title: "GPS Signal", time: "42m ago", desc: "Loss of signal for 12 units in West Java sector.", icon: "gps_off", color: "border-red-500" },
-        { title: "Cold Chain", time: "1h ago", desc: "Temp spike detected in Reefer-X45 container.", icon: "ac_unit", color: "border-red-500" }
-    ];
+    const [alerts, setAlerts] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchAlerts = async () => {
+            try {
+                // Nembak ke endpoint /monitoring-alerts
+                const response = await api.get('/analytics/monitoring-alerts');
+                if (response.data.status === "success") {
+                    setAlerts(response.data.data);
+                }
+            } catch (error) {
+                console.error("Gagal narik data Monitoring Alerts:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchAlerts();
+        
+        // Bonus: Auto-refresh setiap 30 detik karena ini panel monitoring Live!
+        const interval = setInterval(fetchAlerts, 30000);
+        return () => clearInterval(interval);
+    }, []);
 
     return (
-        <section className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-white/10 overflow-hidden flex flex-col h-full">
+        <section className={`bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-white/10 overflow-hidden flex flex-col h-full transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
             <div className="px-8 py-6 border-b border-gray-100 dark:border-white/5 flex justify-between items-center h-20">
                 <h2 className="text-xl font-bold text-japfa-dark dark:text-white uppercase tracking-tight">Monitoring</h2>
-                <span className="px-2 py-0.5 bg-red-100 dark:bg-red-500/20 text-red-600 text-[10px] font-black rounded-full uppercase">4 ACTIVE</span>
+                <span className={`${alerts.length > 0 ? 'bg-red-100 dark:bg-red-500/20 text-red-600' : 'bg-green-100 dark:bg-green-500/20 text-green-600'} px-2 py-0.5 text-[10px] font-black rounded-full uppercase`}>
+                    {alerts.length} ACTIVE
+                </span>
             </div>
             <div className="p-6 flex-1 space-y-4 overflow-y-auto max-h-[450px]">
-                {alerts.map((alert, i) => (
-                    <div key={i} className={`p-4 bg-gray-50 dark:bg-slate-950 border-l-4 ${alert.color} rounded-r-lg relative`}>
-                        <span className="absolute top-3 right-3 text-[10px] font-bold text-japfa-gray">{alert.time}</span>
-                        <div className="flex items-center gap-3 mb-1">
-                            <span className="material-symbols-outlined text-sm text-red-500">{alert.icon}</span>
-                            <h3 className="text-xs font-bold text-japfa-dark dark:text-white uppercase">{alert.title}</h3>
-                        </div>
-                        <p className="text-[11px] text-japfa-gray dark:text-gray-400 leading-tight">{alert.desc}</p>
+                {alerts.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                        <span className="material-symbols-outlined text-4xl mb-2">check_circle</span>
+                        <p className="text-xs font-bold uppercase tracking-widest">All Systems Normal</p>
                     </div>
-                ))}
-                <button className="w-full py-3 bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold rounded-lg uppercase transition-all shadow-md">
-                    Acknowledge All Alerts
-                </button>
+                ) : (
+                    alerts.map((alert, i) => (
+                        <div key={i} className={`p-4 bg-gray-50 dark:bg-slate-950 border-l-4 ${alert.color} rounded-r-lg relative animate-in fade-in slide-in-from-right-4`}>
+                            <span className="absolute top-3 right-3 text-[10px] font-bold text-japfa-gray">{alert.time}</span>
+                            <div className="flex items-center gap-3 mb-1">
+                                <span className="material-symbols-outlined text-sm text-red-500">{alert.icon}</span>
+                                <h3 className="text-xs font-bold text-japfa-dark dark:text-white uppercase">{alert.title}</h3>
+                            </div>
+                            <p className="text-[11px] text-japfa-gray dark:text-gray-400 leading-tight">{alert.desc}</p>
+                        </div>
+                    ))
+                )}
+                
+                {alerts.length > 0 && (
+                    <button 
+                        onClick={() => setAlerts([])} // Dummy acknowledge button
+                        className="w-full py-3 bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold rounded-lg uppercase transition-all shadow-md active:scale-95"
+                    >
+                        Acknowledge All Alerts
+                    </button>
+                )}
             </div>
         </section>
     );

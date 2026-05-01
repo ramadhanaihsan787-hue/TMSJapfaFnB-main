@@ -1,52 +1,21 @@
-"""
-Auth Router - Authentication endpoints (login, register, profile)
-"""
+# routers/auth.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
 from typing import Optional
 
 import models
-# 🌟 IMPORT GET_DB DARI PUSAT KOMANDO! (SessionLocal dihapus karena udah ga dipake di sini)
+import schemas # 🌟 SUNTIKAN PYDANTIC!
 from dependencies import get_db, get_current_user, require_role
 from services.auth_service import AuthService
 
 router = APIRouter(tags=["Authentication"])
 
-# ==========================================
-# SCHEMAS
-# ==========================================
-class LoginResponse(BaseModel):
-    access_token: str
-    token_type: str
-    role: str
-    full_name: str
-    user_id: int
-
-
-class RegisterRequest(BaseModel):
-    username: str
-    password: str
-    full_name: str
-    role: str
-
-
-# ==========================================
-# ENDPOINT: LOGIN
-# ==========================================
-@router.post("/login", response_model=LoginResponse)
+@router.post("/login", response_model=schemas.LoginResponse)
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-    """
-    Login endpoint - Returns JWT token
-    
-    Parameters:
-        - username: User's username
-        - password: User's password
-    """
     user = AuthService.authenticate_user(db, form_data.username, form_data.password)
     
     if not user:
@@ -66,24 +35,11 @@ def login(
         "user_id": user.id
     }
 
-
-# ==========================================
-# ENDPOINT: REGISTER
-# ==========================================
-@router.post("/auth/register", status_code=201)
+@router.post("/auth/register", status_code=201, response_model=schemas.RegisterResponse)
 def register_user(
-    data: RegisterRequest,
+    data: schemas.RegisterRequest,
     db: Session = Depends(get_db)
 ):
-    """
-    Register new user
-    
-    Parameters:
-        - username: Unique username
-        - password: User password
-        - full_name: User's full name
-        - role: User role (manager_logistik, admin_distribusi, admin_pod, driver)
-    """
     VALID_ROLES = ["manager_logistik", "admin_distribusi", "admin_pod", "driver"]
     
     if data.role not in VALID_ROLES:
@@ -101,13 +57,8 @@ def register_user(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
-# ==========================================
-# ENDPOINT: GET PROFILE
-# ==========================================
-@router.get("/auth/me")
+@router.get("/auth/me", response_model=schemas.UserProfileResponse)
 def get_my_profile(current_user: models.User = Depends(get_current_user)):
-    """Get current user profile"""
     return {
         "user_id": current_user.id,
         "username": current_user.username,
@@ -115,16 +66,11 @@ def get_my_profile(current_user: models.User = Depends(get_current_user)):
         "role": current_user.role.value
     }
 
-
-# ==========================================
-# ENDPOINT: LIST USERS (MANAGER ONLY)
-# ==========================================
-@router.get("/auth/users")
+@router.get("/auth/users", response_model=schemas.UserListResponse)
 def get_all_users(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role("manager_logistik"))
 ):
-    """Get all users (Manager Logistik only)"""
     users = AuthService.get_all_users(db)
     
     return {

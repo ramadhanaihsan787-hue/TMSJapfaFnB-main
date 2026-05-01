@@ -1,5 +1,5 @@
 # routers/driver.py
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from datetime import date, datetime
 import os
@@ -7,37 +7,33 @@ import shutil
 import uuid
 
 import models
-# 🌟 IMPORT GET_DB DARI PUSAT KOMANDO!
+import schemas # 🌟 SUNTIKAN PERTAMA: Import Kamus Pydantic Kita!
 from dependencies import get_db, get_current_user
 
-# Prefix kita buat /api/driver biar sinkron sama useDriverappFlow.ts di Frontend
 router = APIRouter(prefix="/api/driver", tags=["Driver App"])
 
-# Lokasi penyimpanan foto lokal (Local Storage)
 UPLOAD_DIR = "static/uploads/epod"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ==========================================
-# 🌟 1. AMBIL RUTE TUGAS SAYA (MY ROUTE)
+# 1. AMBIL RUTE TUGAS SAYA (MY ROUTE)
+# 🌟 SUNTIKAN KEDUA: response_model=schemas.DriverTripResponse
 # ==========================================
-@router.get("/my-route")
+@router.get("/my-route", response_model=schemas.DriverTripResponse)
 def get_my_route(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    # Cari profile supir berdasarkan User ID yang sedang login
     driver = db.query(models.HRDriver).filter(models.HRDriver.user_id == current_user.id).first()
     if not driver:
         raise HTTPException(status_code=404, detail="Profil supir tidak ditemukan di database HR!")
 
-    # Cari rencana rute hari ini untuk supir ini
     today = date.today()
     plan = db.query(models.TMSRoutePlan).filter(
         models.TMSRoutePlan.driver_id == driver.driver_id,
         models.TMSRoutePlan.planning_date == today
     ).first()
 
-    # Kalau belum ada rute hari ini, balikin data kosong yang rapi (biar UI ngga crash)
     if not plan:
         return {
             "truck_id": "-",
@@ -48,7 +44,6 @@ def get_my_route(
             "stops": []
         }
 
-    # Ambil semua titik pemberhentian (stops) dan urutkan sesuai sequence
     stops_data = []
     completed_count = 0
     
@@ -58,13 +53,11 @@ def get_my_route(
 
     for line in lines:
         order = line.order
-        # Translasi Status dari DB (Enum) ke format yang dimau Frontend (String)
         status_fe = "pending"
-        if order.status == models.DOStatus.delivered_success:
+        if order.status in [models.DOStatus.delivered_success, models.DOStatus.delivered_partial]:
             status_fe = "completed"
             completed_count += 1
         elif order.status == models.DOStatus.do_assigned_to_route:
-            # Jika sequence 1, kita anggap dia yang aktif duluan
             status_fe = "active" if line.sequence == 1 else "pending"
 
         stops_data.append({
@@ -75,8 +68,8 @@ def get_my_route(
             "timeWindow": f"{line.est_arrival.strftime('%H:%M')} WIB" if line.est_arrival else "-",
             "weight": f"{order.weight_total} KG",
             "status": status_fe,
-            "latitude": float(order.latitude) if order.latitude else 0,
-            "longitude": float(order.longitude) if order.longitude else 0
+            "latitude": float(order.latitude) if order.latitude else 0.0,
+            "longitude": float(order.longitude) if order.longitude else 0.0
         })
 
     return {
@@ -84,14 +77,15 @@ def get_my_route(
         "driver_name": driver.name,
         "total_stops": len(stops_data),
         "completed_stops": completed_count,
-        "total_distance": plan.total_distance_km or 0,
+        "total_distance": float(plan.total_distance_km) if plan.total_distance_km else 0.0,
         "stops": stops_data
     }
 
 # ==========================================
-# 🌟 2. UPDATE STATUS STOP (SAYA SUDAH TIBA)
+# 2. UPDATE STATUS STOP (SAYA SUDAH TIBA)
+# 🌟 SUNTIKAN KETIGA: response_model=schemas.GenericResponse
 # ==========================================
-@router.post("/stops/{line_id}/status")
+@router.post("/stops/{line_id}/status", response_model=schemas.GenericResponse)
 def update_stop_status(
     line_id: int,
     payload: dict,
@@ -105,41 +99,69 @@ def update_stop_status(
     return {"status": "success", "message": f"Status rute {line_id} berhasil diupdate."}
 
 # ==========================================
-# 🌟 3. SUBMIT E-POD (UPLOAD FOTO BUKTI)
+# 3. SUBMIT E-POD (UPDATE: BISA NANGKEP DATA RETUR!)
+# 🌟 SUNTIKAN KEEMPAT: response_model=schemas.EpodResponse
 # ==========================================
-@router.post("/stops/{line_id}/epod")
+@router.post("/stops/{line_id}/epod", response_model=schemas.EpodResponse)
 async def submit_epod(
     line_id: int,
     file: UploadFile = File(...),
+    has_return: str = Form("false"), 
+    return_product: str = Form(""),
+    return_qty: float = Form(0.0),
+    return_reason: str = Form(""),
     db: Session = Depends(get_db)
 ):
-    # 1. Cek validitas rute
     line = db.query(models.TMSRouteLine).filter(models.TMSRouteLine.line_id == line_id).first()
     if not line:
         raise HTTPException(status_code=404, detail="Data rute tidak ditemukan!")
 
-    # 2. Proses Simpan Foto ke Folder static/uploads/epod
+    total_order_kg = line.order.weight_total or 0.0
+    is_return = has_return.lower() == 'true'
+
+    qty_delivered = total_order_kg
+    qty_returned = 0.0
+    qty_damaged = 0.0
+    final_status = models.DOStatus.delivered_success
+    driver_note = ""
+
+    if is_return and return_qty > 0:
+        qty_delivered = max(0.0, total_order_kg - return_qty)
+        qty_returned = return_qty
+        final_status = models.DOStatus.delivered_partial
+        
+        if return_product:
+            driver_note = f"Produk Retur: {return_product}"
+
+        if return_reason in ["Barang Rusak", "Packaging Bocor", "Kadaluarsa"]:
+            qty_damaged = return_qty
+
     file_ext = file.filename.split(".")[-1]
-    # Bikin nama file unik pake UUID biar ngga bentrok
     filename = f"POD_{line.order_id}_{uuid.uuid4().hex}.{file_ext}"
     file_path = os.path.join(UPLOAD_DIR, filename)
 
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # 3. Simpan record di tabel tms_epod_history
     new_pod = models.TMSEpodHistory(
         line_id=line_id,
-        status=models.DOStatus.delivered_success,
+        status=final_status,
         timestamp=datetime.now(),
         photo_url=f"/static/uploads/epod/{filename}",
         gps_location_lat=line.order.latitude,
-        gps_location_lon=line.order.longitude
+        gps_location_lon=line.order.longitude,
+        qty_delivered=qty_delivered,
+        qty_return=qty_returned,
+        qty_damaged=qty_damaged,
+        return_reason=return_reason if is_return else None,
+        driver_notes=driver_note if is_return else None
     )
     db.add(new_pod)
-
-    # 4. Update status Delivery Order menjadi SUCCESS
-    line.order.status = models.DOStatus.delivered_success
-    
+    line.order.status = final_status
     db.commit()
-    return {"status": "success", "url": new_pod.photo_url}
+    
+    return {
+        "status": "success", 
+        "url": new_pod.photo_url,
+        "message": "POD berhasil diunggah dengan data retur!" if is_return else "POD berhasil diunggah!"
+    }

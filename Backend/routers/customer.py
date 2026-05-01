@@ -8,13 +8,13 @@ from io import BytesIO
 import pandas as pd
 
 import models
-# 🌟 IMPORT GET_DB DARI PUSAT KOMANDO! (Say goodbye to copy-paste!)
+import schemas # 🌟 SUNTIKAN PYDANTIC!
 from dependencies import get_db, get_current_user, require_role
 
 router = APIRouter(prefix="/api/customers", tags=["Master Customers"])
 
 # ==========================================
-# SCHEMAS
+# SCHEMAS INPUT
 # ==========================================
 class CustomerCreate(BaseModel):
     kode_customer: str
@@ -38,9 +38,9 @@ class CustomerUpdate(BaseModel):
     status: Optional[str] = None
 
 # ==========================================
-# ENDPOINT 1: LIST CUSTOMERS (PAGINATED + SEARCH)
+# ENDPOINT 1: LIST CUSTOMERS
 # ==========================================
-@router.get("")
+@router.get("", response_model=schemas.CustomerListResponse) # 🌟 SUNTIK SINI
 def list_customers(
     skip: int = 0,
     limit: int = 50,
@@ -48,7 +48,6 @@ def list_customers(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    print("🕵️ API CUSTOMER DIPANGGIL!")
     query = db.query(models.MasterCustomer)
 
     if search:
@@ -62,7 +61,6 @@ def list_customers(
         )
 
     total = query.count()
-    print(f"📊 TOTAL DATA DI DATABASE: {total}")
     customers = query.offset(skip).limit(limit).all()
 
     return {
@@ -90,7 +88,7 @@ def list_customers(
 # ==========================================
 # ENDPOINT 2: GET SINGLE CUSTOMER
 # ==========================================
-@router.get("/{store_id}")
+@router.get("/{store_id}", response_model=schemas.CustomerDetailResponse) # 🌟 SUNTIK SINI
 def get_customer(
     store_id: int,
     db: Session = Depends(get_db),
@@ -115,30 +113,25 @@ def get_customer(
             "district": customer.district,
             "city": customer.city,
             "adminName": customer.admin_name,
-            "status": customer.status
+            "status": customer.status or "Active"
         }
     }
 
 # ==========================================
 # ENDPOINT 3: CREATE CUSTOMER
 # ==========================================
-@router.post("")
+@router.post("", response_model=schemas.CustomerCreateResponse) # 🌟 SUNTIK SINI
 def create_customer(
     data: CustomerCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(
-        require_role("admin_distribusi", "manager_logistik")
-    )
+    current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))
 ):
     existing = db.query(models.MasterCustomer).filter(
         models.MasterCustomer.kode_customer == data.kode_customer
     ).first()
 
     if existing:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Kode customer '{data.kode_customer}' sudah terdaftar!"
-        )
+        raise HTTPException(status_code=409, detail=f"Kode customer '{data.kode_customer}' sudah terdaftar!")
 
     new_cust = models.MasterCustomer(
         kode_customer=data.kode_customer,
@@ -165,14 +158,12 @@ def create_customer(
 # ==========================================
 # ENDPOINT 4: UPDATE CUSTOMER
 # ==========================================
-@router.put("/{store_id}")
+@router.put("/{store_id}", response_model=schemas.CustomerActionResponse) # 🌟 SUNTIK SINI
 def update_customer(
     store_id: int,
     data: CustomerUpdate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(
-        require_role("admin_distribusi", "manager_logistik")
-    )
+    current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))
 ):
     customer = db.query(models.MasterCustomer).filter(
         models.MasterCustomer.store_id == store_id
@@ -181,14 +172,12 @@ def update_customer(
     if not customer:
         raise HTTPException(status_code=404, detail="Pelanggan tidak ditemukan!")
 
-    # Update field yang diberikan saja
     update_data = data.dict(exclude_unset=True)
     for field, value in update_data.items():
         setattr(customer, field, value)
 
     db.commit()
 
-    # Auto-fix: sync koordinat ke DeliveryOrder yang terkait
     if data.latitude and data.longitude:
         orphan_orders = db.query(models.DeliveryOrder).filter(
             models.DeliveryOrder.store_id == store_id,
@@ -206,7 +195,7 @@ def update_customer(
 # ==========================================
 # ENDPOINT 5: SOFT DELETE
 # ==========================================
-@router.delete("/{store_id}")
+@router.delete("/{store_id}", response_model=schemas.CustomerActionResponse) # 🌟 SUNTIK SINI
 def deactivate_customer(
     store_id: int,
     db: Session = Depends(get_db),
@@ -230,13 +219,11 @@ def deactivate_customer(
 # ==========================================
 # ENDPOINT 6: BATCH IMPORT EXCEL
 # ==========================================
-@router.post("/batch-import")
+@router.post("/batch-import", response_model=schemas.BatchImportResponse) # 🌟 SUNTIK SINI
 async def batch_import(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(
-        require_role("admin_distribusi", "manager_logistik")
-    )
+    current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))
 ):
     contents = await file.read()
 
@@ -299,5 +286,5 @@ async def batch_import(
         "message": "Batch import selesai!",
         "imported": imported,
         "updated": updated,
-        "errors": errors[:10]  # Max 10 error ditampilkan
+        "errors": errors[:10]
     }

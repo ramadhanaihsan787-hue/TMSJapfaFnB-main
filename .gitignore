@@ -18,8 +18,13 @@ __pycache__/
 *.db
 .env
 *.env
+
+# 🌟 FIX CTO: Folder Spesifik JAPFA TMS
 uploads/
-route_geometries/
+static/uploads/    # <-- Cegah foto e-POD & TTD supir bocor ke GitHub!
+route_geometries/  # <-- Cegah JSON rute garis aspal VRP TomTom bocor!
+*.csv              # <-- Cegah data mentah (kayak Jabodetabek2.csv) ke-push!
+*.xlsx             # <-- Cegah file Excel master data ke-push!
 
 # 3. Sampah Windows / Mac / VSCode
 .DS_Store

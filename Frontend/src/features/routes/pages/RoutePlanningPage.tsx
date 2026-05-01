@@ -1,14 +1,11 @@
 // src/features/routes/pages/RoutePlanningPage.tsx
 import React, { useState, useEffect } from "react";
-// Sesuaikan path Header lu, naik 3 lantai ke folder utama src/components
 import Header from "../../../shared/components/Header"; 
 
-// 🌟 IMPORT 3 HOOKS SAKTI
 import { useRoutes } from "../hooks/useRoutes";
 import { useUpload } from "../hooks/useUpload";
 import { useRouteOptimization } from "../hooks/useRouteOptimization";
 
-// 🌟 IMPORT SEMUA KOMPONEN UI YANG UDAH KITA PECAH
 import RouteToolbar from "../components/RouteToolbar";
 import RouteSummaryCards from "../components/RouteSummaryCards";
 import TruckList from "../components/TruckList";
@@ -47,7 +44,6 @@ export default function RoutePlanningPage() {
         const success = await uploadFile(file);
         if (success) setShowVerificationModal(true);
         
-        // Reset input file biar bisa upload file yang sama lagi
         event.target.value = ''; 
     };
 
@@ -72,18 +68,19 @@ export default function RoutePlanningPage() {
         }
     };
 
-    // ================= KALKULASI KPI =================
-    // 🌟 SAFETY NET TAHAP 2: Paksa jadi array kosong kalau tiba-tiba datanya undefined
+    // ================= KALKULASI KPI DINAMIS =================
     const safeRoutesData = Array.isArray(routesData) ? routesData : [];
 
     const totalFleet = safeRoutesData.length;
-    const totalOrders = safeRoutesData.reduce((sum, route) => sum + (route.destinationCount || 0), 0);
-    const totalCost = totalFleet > 0 ? (totalFleet * 1250000).toLocaleString('id-ID') : "0";
-    const totalRealDistance = safeRoutesData.reduce((sum, route) => sum + (route.totalDistanceKm || 0), 0).toFixed(1);
     
-    // Cari rute yang lagi di-klik
-    const selectedRouteData = safeRoutesData.find(r => r.routeId === selectedRouteId);
-
+    const totalOrders = safeRoutesData.reduce((sum, route: any) => sum + (route.destinationCount || route.destinasi_jumlah || 0), 0);
+    
+    const totalCostRaw = safeRoutesData.reduce((sum, route: any) => sum + (route.transportCost || route.transport_cost || 0), 0);
+    const totalCost = totalCostRaw.toLocaleString('id-ID');
+    
+    const totalRealDistance = safeRoutesData.reduce((sum, route: any) => sum + (route.totalDistanceKm || route.total_distance_km || 0), 0).toFixed(1);
+    
+    const selectedRouteData = safeRoutesData.find((r: any) => (r.routeId || r.route_id) === selectedRouteId);
     return (
         <div className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 dark:bg-[#0A0A0A]">
             <Header title="Route Planning Dashboard" />
@@ -114,7 +111,7 @@ export default function RoutePlanningPage() {
                     truckColors={truckColors}
                     onCancel={() => {
                         setPreviewData(null);
-                        setShowVerificationModal(true); // Balik ke tabel ijo/merah kalau batal
+                        setShowVerificationModal(true);
                     }}
                     onConfirmSave={handleConfirm}
                 />
@@ -123,15 +120,13 @@ export default function RoutePlanningPage() {
             {/* 🌟 KONTEN UTAMA (SCROLLABLE) */}
             <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
                 
-                {/* Pesan Sukses */}
                 {routeMessage && (
-                    <div className="px-5 py-3 rounded-xl text-sm font-bold border flex items-center gap-3 shadow-sm bg-emerald-50 text-emerald-700 border-emerald-300">
+                    <div className="px-5 py-3 rounded-xl text-sm font-bold border flex items-center gap-3 shadow-sm bg-emerald-50 text-emerald-700 border-emerald-300 animate-fadeIn">
                         <span className="material-symbols-outlined text-xl">check_circle</span>
                         {routeMessage}
                     </div>
                 )}
 
-                {/* Toolbar Atas */}
                 <RouteToolbar 
                     selectedDate={selectedDate}
                     onDateChange={setSelectedDate}
@@ -139,7 +134,6 @@ export default function RoutePlanningPage() {
                     onFileUpload={handleFileUpload}
                 />
 
-                {/* 4 Kartu KPI */}
                 <RouteSummaryCards 
                     totalCost={totalCost}
                     totalDistance={totalRealDistance}
@@ -148,7 +142,6 @@ export default function RoutePlanningPage() {
                     onCardClick={setActiveModal}
                 />
 
-                {/* Grid Kiri Kanan (Truck List & Detail Sequence) */}
                 <div className="grid grid-cols-12 gap-8 items-start pb-4">
                     {!isFocusMode && (
                         <div className="col-span-3 space-y-4 transition-all duration-300">
@@ -170,7 +163,6 @@ export default function RoutePlanningPage() {
                             onToggleFocus={() => setIsFocusMode(!isFocusMode)}
                             showMapView={showMapView}
                             onToggleMapView={() => setShowMapView(!showMapView)}
-                            // Injeksi MapComponent ke dalem panel biar ngga usah mikirin logic Leaflet di UI teks
                             mapComponent={
                                 <RouteMap 
                                     routesData={routesData}
@@ -201,7 +193,6 @@ export default function RoutePlanningPage() {
                             onSelectRoute={setSelectedRouteId}
                         />
                         
-                        {/* Alert Toko Gagal Routing */}
                         {droppedNodes.length > 0 && (
                             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border border-red-200 dark:border-red-900 flex items-center gap-2 animate-bounce cursor-pointer hover:scale-105 transition-transform" onClick={() => alert(`Ada ${droppedNodes.length} toko yang gagal di-routing. Silahkan cek data.`)}>
                                 <span className="material-symbols-outlined text-red-600 text-lg">warning</span>
@@ -210,10 +201,8 @@ export default function RoutePlanningPage() {
                         )}
                     </div>
                 </div>
-
             </div>
 
-            {/* Modal KPI Sederhana (Cost, Distance, dll) */}
             {activeModal && (
                 <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setActiveModal(null)}>
                     <div className="bg-white dark:bg-[#1F1F1F] rounded-2xl shadow-2xl p-6 w-full max-w-sm animate-in zoom-in-95 text-center" onClick={e => e.stopPropagation()}>
@@ -224,7 +213,6 @@ export default function RoutePlanningPage() {
                     </div>
                 </div>
             )}
-
         </div>
     );
 }

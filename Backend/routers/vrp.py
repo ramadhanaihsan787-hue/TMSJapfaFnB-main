@@ -8,7 +8,7 @@ import math
 import os
 
 import models
-# 🌟 IMPORT SERVICE & HELPERS KITA!
+import schemas # 🌟 SUNTIKAN PYDANTIC!
 from services import vrp_solver, map_service
 from utils.helpers import time_str_to_minutes, menit_ke_jam, classify_store
 from dependencies import get_db, get_settings, get_current_user, require_role
@@ -16,16 +16,13 @@ from core.config import settings as env_settings
 
 router = APIRouter(prefix="/api", tags=["VRP & Route Planning"])
 
-# ==========================================
-# ENDPOINT 1: OPTIMIZE ROUTES (VRP)
-# ==========================================
-@router.post("/routes/optimize")
+@router.post("/routes/optimize", response_model=schemas.OptimizeResponse)
 def optimize_routes(
     preview: bool = False,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))
 ):
-    settings = get_settings() # 🌟 Pake dari dependencies
+    settings = get_settings()
     TOMTOM_KEY   = env_settings.TOMTOM_API_KEY
     DEPO_LAT     = settings.depo_lat
     DEPO_LON     = settings.depo_lon
@@ -65,7 +62,6 @@ def optimize_routes(
         time_windows.append((tw_start, tw_end))
         node_to_order[idx + 1] = order
 
-    # 🌟 PANGGIL MAP SERVICE KITA
     distance_matrix, time_matrix = None, None
     if TOMTOM_KEY:
         distance_matrix, time_matrix = map_service.build_tomtom_matrix(locations, TOMTOM_KEY)
@@ -109,7 +105,6 @@ def optimize_routes(
         )
         if not preview: db.add(new_plan)
 
-        # 🌟 PANGGIL GEOMETRY SERVICE
         route_geometry = map_service.get_road_geometry(route_indices, locations, TOMTOM_KEY) if TOMTOM_KEY else []
 
         manifest, total_muatan, current_time, prev_node = [], 0, START_MINUTE, 0
@@ -170,10 +165,7 @@ def optimize_routes(
         "jadwal_truk_internal": formatted_routes, "dropped_nodes_peta": dropped
     }
 
-# ==========================================
-# ENDPOINT 2: GET ROUTES BY DATE
-# ==========================================
-@router.get("/routes")
+@router.get("/routes", response_model=schemas.GetRoutesResponse)
 def get_routes(
     date: Optional[str] = None, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)
 ):
@@ -214,12 +206,9 @@ def get_routes(
         })
 
     unassigned = db.query(models.DeliveryOrder).filter(models.DeliveryOrder.status == models.DOStatus.do_verified).all()
-    return {"routes": hasil, "dropped_nodes": [{"nama_toko": o.customer_name, "berat_kg": o.weight_total, "alasan": "Drop AI"} for o in unassigned]}
+    return {"routes": hasil, "dropped_nodes": [{"nama_toko": o.customer_name, "berat_kg": o.weight_total, "alasan": "Drop AI", "lat": float(o.latitude) if o.latitude else 0.0, "lon": float(o.longitude) if o.longitude else 0.0} for o in unassigned]}
 
-# ==========================================
-# ENDPOINT 3: CONFIRM & SAVE ROUTE
-# ==========================================
-@router.post("/routes/confirm")
+@router.post("/routes/confirm", response_model=schemas.ConfirmRouteResponse)
 def confirm_routes(payload: dict, db: Session = Depends(get_db), current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))):
     try:
         today = datetime.datetime.now().date()
@@ -258,10 +247,7 @@ def confirm_routes(payload: dict, db: Session = Depends(get_db), current_user: m
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-# ==========================================
-# ENDPOINT 4: GET LOAD PLAN (3D)
-# ==========================================
-@router.get("/routes/{route_id}/loadplan")
+@router.get("/routes/{route_id}/loadplan", response_model=schemas.LoadPlanResponse)
 def get_load_plan(route_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     from py3dbp import Packer, Bin, Item
     route_plan = db.query(models.TMSRoutePlan).filter(models.TMSRoutePlan.route_id == route_id).first()

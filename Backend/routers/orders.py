@@ -10,26 +10,27 @@ import time
 import re
 
 import models
-# 🌟 IMPORT DARI PUSAT KOMANDO KITA (No Copy-Paste Club!)
+import schemas # 🌟 SUNTIKAN PYDANTIC KITA!
 from dependencies import get_db, get_settings, get_current_user, require_role
 from utils.helpers import time_str_to_minutes
 
 router = APIRouter(prefix="/api", tags=["Orders & Delivery"])
 
-# ==========================================
-# HELPER FUNCTIONS (SPESIFIK BUAT FILE INI)
-# ==========================================
+class TimeUpdateRequest(BaseModel):
+    jam_maksimal: str  
+
+class CoordinateUpdateRequest(BaseModel):
+    latitude: float
+    longitude: float
+    kode_customer: str
+    nama_customer: str
+
 def parse_time_window(keterangan: str, default_start: int, default_end: int):
-    """
-    Smart Time Window Parser untuk Excel SAP
-    Return: (window_start, window_end, priority_first)
-    """
     if not keterangan:
         return default_start, default_end, False
 
     text = str(keterangan).strip().upper()
 
-    # 1️⃣ Skip kalau diambil sendiri
     if "DIAMBIL CUST" in text:
         return None, None, False
 
@@ -37,11 +38,9 @@ def parse_time_window(keterangan: str, default_start: int, default_end: int):
     window_end   = default_end
     priority_first = False
 
-    # 2️⃣ PRIORITY FIRST
     if "PERTAMA" in text or "FIRST" in text:
         priority_first = True
 
-    # 3️⃣ Format HH:MM (11:30)
     match_hhmm = re.search(r'\b([0-2]?\d):([0-5]\d)\b', text)
     if match_hhmm:
         hour   = int(match_hhmm.group(1))
@@ -50,7 +49,6 @@ def parse_time_window(keterangan: str, default_start: int, default_end: int):
             window_end = hour * 60 + minute
             return window_start, window_end, priority_first
 
-    # 4️⃣ Format jam tunggal (10, 11, 14, dst)
     match_hour = re.search(r'\b([0-2]?\d)\b', text)
     if match_hour:
         hour = int(match_hour.group(1))
@@ -58,7 +56,6 @@ def parse_time_window(keterangan: str, default_start: int, default_end: int):
             window_end = hour * 60
             return window_start, window_end, priority_first
 
-    # 5️⃣ Keyword fallback
     if "PAGI" in text:
         window_end = 600
     elif "SIANG" in text:
@@ -69,31 +66,13 @@ def parse_time_window(keterangan: str, default_start: int, default_end: int):
     return window_start, window_end, priority_first
 
 
-# ==========================================
-# SCHEMAS
-# ==========================================
-class TimeUpdateRequest(BaseModel):
-    jam_maksimal: str  # Format "HH:MM"
-
-class CoordinateUpdateRequest(BaseModel):
-    latitude: float
-    longitude: float
-    kode_customer: str
-    nama_customer: str
-
-# ==========================================
-# ENDPOINT 1: UPLOAD SAP EXCEL
-# ==========================================
-@router.post("/orders/upload")
+# 🌟 SUNTIKAN RESPONSE_MODEL
+@router.post("/orders/upload", response_model=schemas.UploadResponse)
 async def upload_sap_file(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))
 ):
-    """
-    Upload file SAP Excel/CSV dan parse ke Delivery Orders.
-    Hanya Admin Distribusi dan Manager Logistik yang bisa upload.
-    """
     contents = await file.read()
     try:
         if file.filename.endswith('.csv'):
@@ -118,7 +97,6 @@ async def upload_sap_file(
 
     df = df.dropna(subset=[col_desc])
 
-    # 🌟 FIX DRY: Panggil get_settings tanpa parameter dari dependencies
     settings = get_settings()
     default_start = time_str_to_minutes(settings.vrp_start_time)
     default_end   = time_str_to_minutes(settings.vrp_end_time)  
@@ -213,10 +191,8 @@ async def upload_sap_file(
     db.commit()
     return {"message": f"Upload selesai! {count} DO berhasil, {len(failed_list)} gagal.", "success_list": success_list, "failed_list": failed_list}
 
-# ==========================================
-# ENDPOINT 2: UPDATE TIME WINDOW MANUAL
-# ==========================================
-@router.put("/orders/{order_id}/time")
+# 🌟 SUNTIKAN RESPONSE_MODEL
+@router.put("/orders/{order_id}/time", response_model=schemas.OrderActionResponse)
 def update_time_window(
     order_id: str, data: TimeUpdateRequest, db: Session = Depends(get_db), current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))
 ):
@@ -232,10 +208,8 @@ def update_time_window(
         return {"message": f"Batas waktu {order.customer_name} diubah ke {data.jam_maksimal}", "order_id": order_id, "new_window_end": order.delivery_window_end}
     except Exception: raise HTTPException(status_code=400, detail="Format jam salah! Gunakan HH:MM")
 
-# ==========================================
-# ENDPOINT 3: UPDATE KOORDINAT MANUAL (Self-Healing)
-# ==========================================
-@router.put("/orders/{order_id}/coordinate")
+# 🌟 SUNTIKAN RESPONSE_MODEL
+@router.put("/orders/{order_id}/coordinate", response_model=schemas.OrderActionResponse)
 def update_coordinate(
     order_id: str, data: CoordinateUpdateRequest, db: Session = Depends(get_db), current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))
 ):
@@ -247,7 +221,7 @@ def update_coordinate(
     if order_id.startswith("DRAFT-"):
         upsert_master_customer(data.kode_customer, data.nama_customer, data.latitude, data.longitude)
         db.commit()
-        return {"message": "Koordinat DRAFT berhasil disimpan ke Master Database!"}
+        return {"message": "Koordinat DRAFT berhasil disimpan ke Master Database!", "order_id": order_id}
 
     order = db.query(models.DeliveryOrder).filter(models.DeliveryOrder.order_id == order_id).first()
     if not order: raise HTTPException(status_code=404, detail="Order tidak ditemukan")
@@ -257,10 +231,8 @@ def update_coordinate(
     db.commit()
     return {"message": "Koordinat berhasil diupdate dan disimpan ke Master Database!", "order_id": order_id}
 
-# ==========================================
-# ENDPOINT 4: GET SEMUA DO PENDING
-# ==========================================
-@router.get("/orders")
+# 🌟 SUNTIKAN RESPONSE_MODEL
+@router.get("/orders", response_model=schemas.PendingOrderResponse)
 def get_pending_orders(status: Optional[str] = None, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     query = db.query(models.DeliveryOrder)
     if status:
