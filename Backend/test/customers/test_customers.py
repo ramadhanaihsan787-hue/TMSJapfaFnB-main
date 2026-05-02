@@ -1,5 +1,8 @@
 # test/customers/test_customers.py
 import pytest
+import logging
+
+logger = logging.getLogger(__name__)
 
 def test_crud_basic_customer(client, admin_token):
     """1. CRUD Basic: Bikin customer JAPFA baru"""
@@ -20,14 +23,12 @@ def test_crud_basic_customer(client, admin_token):
     if response.status_code == 404:
         pytest.skip("Endpoint POST /api/customers belum ada")
     
-    # 🌟 FITUR CTO: Kita print RAW TEXT-nya aja biar ngga KeyError!
     if response.status_code == 422:
-        print("\n🚨 INFO SCHEMA:", response.text)
-        pytest.skip("Format Payload test beda dengan schemas.py lu. Cek log 🚨 di atas.")
+        logger.warning(f"🚨 INFO SCHEMA: {response.text}")
+        pytest.skip("Format Payload test beda dengan schemas.py lu.")
         
     assert response.status_code in [200, 201]
 
-    # Cek apakah datanya beneran kesimpen
     response_get = client.get(
         "/api/customers", 
         headers={"Authorization": f"Bearer {admin_token}"}

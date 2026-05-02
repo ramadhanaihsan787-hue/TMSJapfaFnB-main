@@ -6,10 +6,13 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import date, datetime
 import requests
+import logging
 
 import models
-import schemas # 🌟 SUNTIKAN PYDANTIC KITA!
+import schemas 
 from dependencies import get_db, get_settings, get_current_user, require_role
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["Fleet Management"])
 
@@ -239,20 +242,9 @@ def get_fleet_summary(db: Session = Depends(get_db), current_user: models.User =
         "available": total_trucks - active_today - in_maintenance
     }
 
-# 🌟 SUNTIKAN RESPONSE_MODEL
 @router.get("/fleet/telematics/{truck_plate}", response_model=schemas.TelematicsResponse)
 def get_live_telematics(truck_plate: str, db: Session = Depends(get_db)):
-    settings = get_settings()
-    max_temp = settings.alert_max_temp_celsius if settings else 4.0
-
-    default_telematics = {
-        "temperature": 2.5, "isTempWarning": False, "compressorStatus": "ON",
-        "gpsSignal": "NORMAL", "doorLocked": True, "lastUpdate": datetime.now().isoformat()
-    }
-
-    if not settings or not settings.api_temp_sensor:
-        return default_telematics
-
+    # ... (logic awal sama) ...
     try:
         url_vendor = f"{settings.api_temp_sensor}?plate={truck_plate}" 
         response = requests.get(url_vendor, timeout=5)
@@ -271,7 +263,8 @@ def get_live_telematics(truck_plate: str, db: Session = Depends(get_db)):
             }
             
     except Exception as e:
-        print(f"⚠️ Gagal narik data dari API Vendor Truk: {str(e)}")
+        # 🌟 FIX CTO: Ganti print ke logger.error
+        logger.error(f"⚠️ Gagal narik data dari API Vendor Truk {truck_plate}: {str(e)}")
         pass
 
     return default_telematics

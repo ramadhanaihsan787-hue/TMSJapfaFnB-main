@@ -1,7 +1,9 @@
+// src/features/analytics/tests/useAnalytics.test.ts
 import { renderHook, act } from "@testing-library/react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { useAnalytics } from "../hooks/useAnalytics"; 
 import { analyticsService } from "../services/analyticsService";
+import { toast } from "sonner"; // 🌟 IMPORT TOAST BUAT DI-TEST
 
 // MOCK SERVICE ANALYTICS
 vi.mock("../services/analyticsService", () => ({
@@ -11,8 +13,16 @@ vi.mock("../services/analyticsService", () => ({
   },
 }));
 
-const mockAlert = vi.fn();
-vi.stubGlobal('alert', mockAlert);
+// 🌟 FIX CTO: MOCK SONNER (Gantiin mockAlert lama)
+vi.mock("sonner", () => ({
+  toast: {
+    error: vi.fn(),
+    success: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn()
+  }
+}));
+
 window.URL.createObjectURL = vi.fn() as any;
 
 describe("🔥 FEATURE: ANALYTICS DASHBOARD", () => {
@@ -58,8 +68,8 @@ describe("🔥 FEATURE: ANALYTICS DASHBOARD", () => {
       resultHook.current.setEndDate("2026-01-01");
     });
 
-    // Harusnya muncul alert dan service ngga ditembak!
-    expect(mockAlert).toHaveBeenCalledWith("Tanggal Mulai tidak boleh lebih besar dari Tanggal Akhir Bos!");
+    // 🌟 FIX CTO: Cek apakah toast.error dipanggil (bukan mockAlert)
+    expect(toast.error).toHaveBeenCalledWith("Tanggal Mulai tidak boleh lebih besar dari Tanggal Akhir Bos!");
   });
 
   test("3. getBarHeight logic", async () => {

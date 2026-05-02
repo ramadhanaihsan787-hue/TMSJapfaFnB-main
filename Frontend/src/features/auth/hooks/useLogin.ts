@@ -34,6 +34,8 @@ export const useLogin = () => {
                 navigate('/driver');
             } else if (data.role === 'admin_distribusi') {
                 navigate('/logistik');
+            } else if (data.role === 'kasir') { 
+                navigate('/finance');
             } else {
                 navigate('/'); // Kalau rolenya aneh, balikin ke root
             }

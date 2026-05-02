@@ -1,5 +1,6 @@
 // src/features/customers/hooks/useCustomers.ts
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner"; // 🌟 SUNTIKAN SONNER
 import { customerService } from "../services/customerService";
 import type { Customer, CustomerFormData, ViewMode } from "../types";
 
@@ -20,7 +21,6 @@ export const useCustomers = () => {
     const [notificationMessage, setNotificationMessage] = useState("");
     const [formData, setFormData] = useState<CustomerFormData>(defaultForm);
 
-    // 🌟 TEMBAK API MENGGUNAKAN SERVICE (TANPA BYPASS KOTOR)
     const fetchCustomers = useCallback(async () => {
         setLoading(true);
         try {
@@ -28,7 +28,6 @@ export const useCustomers = () => {
             const actualData = resData?.data?.data || resData?.data || resData;
 
             if (actualData && Array.isArray(actualData)) {
-                // Translator Data (Kotor -> Bersih)
                 const mappedCustomers = actualData.map((cust: any) => ({
                     ...cust,
                     code: cust.kodeCustomer || cust.kode_customer || cust.code || "-",
@@ -51,13 +50,11 @@ export const useCustomers = () => {
         }
     }, []);
 
-    // Obat anti kedap-kedip
     useEffect(() => {
         fetchCustomers();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Logic Navigasi Form
     const goToList = () => { setViewMode('list'); setFormData(defaultForm); };
     const goToAdd = () => { setFormData(defaultForm); setViewMode('add'); };
     const goToEdit = (cust: Customer) => {
@@ -75,7 +72,6 @@ export const useCustomers = () => {
         setViewMode('edit');
     };
 
-    // Logic Simpan Data
     const saveCustomer = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
@@ -91,19 +87,20 @@ export const useCustomers = () => {
             if (res && res.status === "success") {
                 setNotificationMessage(viewMode === 'add' ? "Customer Profile Created" : "Customer Profile Updated");
                 setShowNotification(true);
-                await fetchCustomers(); // Refresh tabel
+                await fetchCustomers(); 
 
-                // Tutup notif dan balik ke list setelah 1.5 detik
                 setTimeout(() => {
                     setShowNotification(false);
                     goToList();
                 }, 1500);
             } else {
-                alert(`Gagal menyimpan data: ${res?.detail || 'Unknown error'}`);
+                // 🌟 FIX CTO: Ganti alert jadi toast.error
+                toast.error(`Gagal menyimpan data: ${res?.detail || 'Unknown error'}`);
             }
         } catch (error) {
             console.error("Error saving customer:", error);
-            alert("Terjadi kesalahan saat menyambung ke server.");
+            // 🌟 FIX CTO: Ganti alert jadi toast.error
+            toast.error("Terjadi kesalahan saat menyambung ke server.");
         } finally {
             setIsSaving(false);
         }

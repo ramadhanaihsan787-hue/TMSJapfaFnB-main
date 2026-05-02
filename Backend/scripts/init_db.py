@@ -1,20 +1,25 @@
 """
 Initialize Database - Create all tables
 """
+import logging
 from database import engine, Base
 import models
 
+# 🌟 SETUP LOGGER
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
+
 def init_database():
     """Create all database tables from models"""
-    print("🔄 Membuat semua tabel dari models.py...")
+    logger.info("🔄 Membuat semua tabel dari models.py...")
     
     # Create all tables according to models.py definitions
     Base.metadata.create_all(bind=engine)
     
-    print("✅ Semua tabel berhasil dibuat!")
-    print("\nTabel yang dibuat:")
+    logger.info("✅ Semua tabel berhasil dibuat!")
+    logger.info("Tabel yang dibuat:")
     for table in Base.metadata.sorted_tables:
-        print(f"  - {table.name}")
+        logger.info(f"  - {table.name}")
 
 
 if __name__ == "__main__":

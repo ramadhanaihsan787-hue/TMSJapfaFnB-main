@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import Header from "../../../shared/components/Header";
-// 🌟 FIX CTO #7: Pake API Client, bukan LocalStorage!
 import { api } from "../../../shared/services/apiClient";
-// 🌟 FIX CTO #5: Pake Toast yang elegan, buang alert() primitif!
 import toast, { Toaster } from "react-hot-toast";
 
 export default function PodSettingsPage() {
@@ -62,7 +60,6 @@ export default function PodSettingsPage() {
             localStorage.setItem('pref_soundAlert', String(soundAlert));
             localStorage.setItem('pref_density', dataDensity);
 
-            // 🔥 TOAST NOTIFICATION MENGGANTIKAN ALERT()
             toast.success("Pengaturan Tampilan & Interaksi berhasil disimpan! 🚀");
         } catch (error) {
             toast.error("Gagal menyimpan pengaturan ke server!");

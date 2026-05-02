@@ -31,7 +31,8 @@ from routers import (
     dashboard as dashboard_router,
     settings as settings_router,
     customer as customer_router,
-    driver as driver_router  # Router Driver App
+    driver as driver_router,
+    finance as finance_router
 )
 
 # ==========================================
@@ -122,7 +123,8 @@ app.include_router(analytics_router.router, tags=["Analytics"])
 app.include_router(dashboard_router.router, tags=["Dashboard"])
 app.include_router(settings_router.router, tags=["Settings"])
 app.include_router(customer_router.router, tags=["Customers"])
-app.include_router(driver_router.router, tags=["Drivers"]) 
+app.include_router(driver_router.router, tags=["Drivers"])
+app.include_router(finance_router.router, tags=["Finance & Expenses"])
 
 # ==========================================
 # 6. SYSTEM ENDPOINTS

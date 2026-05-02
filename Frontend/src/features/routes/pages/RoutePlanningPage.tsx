@@ -1,5 +1,6 @@
 // src/features/routes/pages/RoutePlanningPage.tsx
 import React, { useState, useEffect } from "react";
+import { toast } from 'sonner'; // 🌟 SUNTIKAN SONNER!
 import Header from "../../../shared/components/Header"; 
 
 import { useRoutes } from "../hooks/useRoutes";
@@ -22,7 +23,6 @@ export default function RoutePlanningPage() {
     const [showMapView, setShowMapView] = useState(false);
     const [activeModal, setActiveModal] = useState<'cost' | 'distance' | 'fleet' | 'stops' | null>(null);
     const [showVerificationModal, setShowVerificationModal] = useState(false);
-    const [routeMessage, setRouteMessage] = useState('');
 
     const truckColors = ['#e11d48', '#0284c7', '#16a34a', '#d97706', '#9333ea', '#0d9488', '#0891b2'];
 
@@ -52,19 +52,22 @@ export default function RoutePlanningPage() {
         try {
             await optimize();
         } catch (error) {
-            alert('Gagal melakukan optimasi rute!');
+            // 🌟 FIX CTO: Ganti alert jadi toast.error
+            toast.error('Gagal melakukan optimasi rute!');
         }
     };
 
     const handleConfirm = async () => {
         try {
             await confirm();
-            setRouteMessage('Rute berhasil dikunci & disimpan ke Database!');
+            // 🌟 FIX CTO: Ganti setRouteMessage jadi toast.success
+            toast.success('Rute berhasil dikunci & disimpan ke Database! 🚀');
             const todayStr = new Date().toISOString().split('T')[0];
             setSelectedDate(todayStr);
             await fetchRoutes(todayStr);
         } catch (error) {
-            alert('Gagal menyimpan rute permanen!');
+            // 🌟 FIX CTO: Ganti alert jadi toast.error
+            toast.error('Gagal menyimpan rute permanen!');
         }
     };
 
@@ -119,13 +122,6 @@ export default function RoutePlanningPage() {
 
             {/* 🌟 KONTEN UTAMA (SCROLLABLE) */}
             <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
-                
-                {routeMessage && (
-                    <div className="px-5 py-3 rounded-xl text-sm font-bold border flex items-center gap-3 shadow-sm bg-emerald-50 text-emerald-700 border-emerald-300 animate-fadeIn">
-                        <span className="material-symbols-outlined text-xl">check_circle</span>
-                        {routeMessage}
-                    </div>
-                )}
 
                 <RouteToolbar 
                     selectedDate={selectedDate}
@@ -194,7 +190,8 @@ export default function RoutePlanningPage() {
                         />
                         
                         {droppedNodes.length > 0 && (
-                            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border border-red-200 dark:border-red-900 flex items-center gap-2 animate-bounce cursor-pointer hover:scale-105 transition-transform" onClick={() => alert(`Ada ${droppedNodes.length} toko yang gagal di-routing. Silahkan cek data.`)}>
+                            // 🌟 FIX CTO: Ganti alert jadi toast.warning (opsional, karena ini cuma interaktif kecil)
+                            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border border-red-200 dark:border-red-900 flex items-center gap-2 animate-bounce cursor-pointer hover:scale-105 transition-transform" onClick={() => toast.warning(`Ada ${droppedNodes.length} toko yang gagal di-routing. Silahkan cek data.`)}>
                                 <span className="material-symbols-outlined text-red-600 text-lg">warning</span>
                                 <span className="text-xs font-black text-red-600 uppercase tracking-wider">{droppedNodes.length} Toko Gagal AI!</span>
                             </div>

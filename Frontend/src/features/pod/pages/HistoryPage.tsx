@@ -1,28 +1,24 @@
 import React, { useState } from "react";
+import { toast } from 'sonner'; // 🌟 SUNTIKAN SONNER!
 import Header from "../../../shared/components/Header";
 import ActionMenu from "../components/ActionMenu";
-import { usePod } from '../hooks/usePod'; // 🌟 Mesin sedot data
+import { usePod } from '../hooks/usePod';
 
 export default function HistoryPage() {
     const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
     const [openActionId, setOpenActionId] = useState<number | null>(null);
 
-    // 🌟 Sedot semua data DO
     const { orders, isLoading, error } = usePod();
 
-    // 🌟 Filter murni untuk data riwayat (Selesai atau Gagal)
-    // Asumsi status lu: 'pod_verified' (Success) atau 'do_failed' (Return)
     const historyOrders = orders.filter(o => 
         o.status === 'pod_verified' || o.status === 'do_failed'
     );
 
-    // Hitung statistik harian (Contoh)
     const totalDocs = historyOrders.length;
     const successDocs = historyOrders.filter(o => o.status === 'pod_verified').length;
     const failedDocs = totalDocs - successDocs;
     const efficiency = totalDocs === 0 ? 0 : ((successDocs / totalDocs) * 100).toFixed(1);
 
-    // Get today's date format
     const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
     return (
@@ -30,7 +26,6 @@ export default function HistoryPage() {
             <Header title="Riwayat & Arsip Dokumen" />
 
             <div className="p-8 space-y-6">
-                {/* Toolbar (Tetep persis desain lu) */}
                 <div className="flex flex-wrap items-center gap-4 bg-white dark:bg-[#1a1a1a] p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 transition-colors">
                     <div className="flex flex-col gap-1 min-w-[200px]">
                         <span className="text-[10px] uppercase font-bold text-slate-400">Periode</span>
@@ -62,7 +57,8 @@ export default function HistoryPage() {
                         {isDownloadMenuOpen && (
                             <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#333] rounded-xl shadow-lg z-20 overflow-hidden text-left">
                                 <div className="p-2 flex flex-col gap-1">
-                                    <button onClick={() => alert('Fitur Export segera hadir!')} className="flex items-center gap-3 p-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#222] hover:text-primary rounded-lg transition-colors active:scale-95 text-left font-medium">
+                                    {/* 🌟 FIX CTO: Ganti alert jadi toast.info */}
+                                    <button onClick={() => toast.info('Fitur Export segera hadir!')} className="flex items-center gap-3 p-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#222] hover:text-primary rounded-lg transition-colors active:scale-95 text-left font-medium">
                                         <span className="material-symbols-outlined text-[18px]">summarize</span> Excel (CSV)
                                     </button>
                                 </div>
@@ -71,7 +67,6 @@ export default function HistoryPage() {
                     </div>
                 </div>
 
-                {/* 🌟 Daily Summary Card - SEKARANG LIVE DARI DATA! */}
                 <div className="bg-primary/10 border border-primary/20 p-6 rounded-xl flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <div className="bg-primary w-12 h-12 rounded-full flex items-center justify-center text-white shrink-0">
@@ -93,7 +88,6 @@ export default function HistoryPage() {
                     </div>
                 </div>
 
-                {/* Table Content */}
                 <div className="bg-white dark:bg-[#1a1a1a] rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden transition-colors">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
@@ -119,7 +113,6 @@ export default function HistoryPage() {
                                     <tr><td colSpan={6} className="py-8 text-center text-slate-500 font-medium italic">Belum ada riwayat dokumen yang selesai atau gagal.</td></tr>
                                 )}
 
-                                {/* 🌟 LOOPING DATA RIWAYAT ASLI */}
                                 {!isLoading && !error && historyOrders.map((order, idx) => {
                                     const isSuccess = order.status === 'pod_verified';
                                     
@@ -142,7 +135,8 @@ export default function HistoryPage() {
                                                     currentOpenId={openActionId} 
                                                     setOpenId={setOpenActionId} 
                                                     items={[
-                                                        { icon: 'description', label: 'Lihat Arsip e-POD', onClick: () => alert('Buka Arsip: ' + order.order_id) }
+                                                        // 🌟 FIX CTO: Ganti alert jadi toast.info
+                                                        { icon: 'description', label: 'Lihat Arsip e-POD', onClick: () => toast.info('Buka Arsip: ' + order.order_id) }
                                                     ]}
                                                 />
                                             </td>
@@ -154,7 +148,6 @@ export default function HistoryPage() {
                         </table>
                     </div>
 
-                    {/* Pagination */}
                     <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-[#1a1a1a]">
                         <span className="text-sm text-slate-500 dark:text-slate-400">Menampilkan {historyOrders.length} data riwayat</span>
                     </div>

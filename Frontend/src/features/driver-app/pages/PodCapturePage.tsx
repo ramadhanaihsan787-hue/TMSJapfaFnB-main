@@ -1,21 +1,22 @@
+// src/features/driver-app/pages/PodCapturePage.tsx
 import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SignatureCanvas from 'react-signature-canvas';
+import { toast } from 'sonner'; // 🌟 SUNTIKAN SONNER!
 import Header from '../../../shared/components/Header';
 
-// 🌟 FIX CTO: Import Service & Hooks!
 import { driverappService } from '../services/driverappService';
 import { useDriverappFlow } from '../hooks/useDriverappFlow';
 
 const DriverPodCapture: React.FC = () => {
     const navigate = useNavigate();
-    const { activeStop, submitPod } = useDriverappFlow(); // Nyawa API!
+    const { activeStop, submitPod } = useDriverappFlow(); 
     
     const sigCanvas = useRef<SignatureCanvas>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
-    const [photoFile, setPhotoFile] = useState<File | null>(null); // 🌟 FIX CTO: Simpan file aslinya!
+    const [photoFile, setPhotoFile] = useState<File | null>(null); 
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Return (Retur) States
@@ -35,10 +36,10 @@ const DriverPodCapture: React.FC = () => {
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
-            setPhotoFile(file); // Simpan file buat dikirim ke API
+            setPhotoFile(file); 
             const reader = new FileReader();
             reader.onloadend = () => {
-                setCapturedImage(reader.result as string); // Buat preview di layar
+                setCapturedImage(reader.result as string); 
             };
             reader.readAsDataURL(file);
         }
@@ -56,13 +57,11 @@ const DriverPodCapture: React.FC = () => {
 
     const isFormValid = capturedImage && (!hasReturn || (returnProduct && returnQty && returnReason));
 
-    // 🌟 FIX CTO: MESIN PENGIRIM DATA KE BACKEND!
     const handleSubmit = async () => {
         if (!isFormValid || !activeStop || !photoFile) return;
         
         setIsSubmitting(true);
         try {
-            // Bungkus Foto dan Teks ke dalam FormData!
             const formData = new FormData();
             formData.append('file', photoFile);
             formData.append('has_return', hasReturn ? 'true' : 'false');
@@ -73,16 +72,16 @@ const DriverPodCapture: React.FC = () => {
                 formData.append('return_reason', returnReason);
             }
 
-            // Tembak ke API!
             await driverappService.submitEpod(activeStop.id, formData);
             
-            alert("Berhasil ngirim bukti pengiriman!");
-            // 🌟 Lanjut ke stop berikutnya atau summary
+            // 🌟 FIX CTO: Ganti alert jadi toast.success
+            toast.success("Berhasil ngirim bukti pengiriman!");
             submitPod(); 
             navigate('/driver/routes'); 
         } catch (error) {
             console.error(error);
-            alert("Gagal ngirim data, coba lagi bos!");
+            // 🌟 FIX CTO: Ganti alert jadi toast.error
+            toast.error("Gagal ngirim data, coba lagi bos!");
         } finally {
             setIsSubmitting(false);
         }
@@ -95,7 +94,6 @@ const DriverPodCapture: React.FC = () => {
             <main className="max-w-md mx-auto px-4 py-6 flex flex-col min-h-[calc(100vh-80px)]">
                 <div className="bg-white dark:bg-[#111111] rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-white/5 space-y-8">
 
-                    {/* Return Selection Toggle */}
                     <div className="p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/10">
                         <div className="flex items-center justify-between mb-4">
                             <div>
@@ -118,7 +116,6 @@ const DriverPodCapture: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Return Form (Dynamic) */}
                         {hasReturn && (
                             <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-white/10 animate-in fade-in slide-in-from-top-2 duration-300">
                                 <div>
@@ -165,7 +162,6 @@ const DriverPodCapture: React.FC = () => {
                         )}
                     </div>
 
-                    {/* Photo capture */}
                     <input
                         type="file"
                         ref={fileInputRef}
@@ -205,7 +201,6 @@ const DriverPodCapture: React.FC = () => {
                         )}
                     </div>
 
-                    {/* Signature section */}
                     <div className="space-y-3">
                         <div className="flex justify-between items-center">
                             <div>
@@ -242,7 +237,7 @@ const DriverPodCapture: React.FC = () => {
 
                 <div className="mt-auto pt-8 pb-8 space-y-4">
                     <button
-                        onClick={handleSubmit} // 🌟 FIX CTO: Panggil fungsi API kita!
+                        onClick={handleSubmit} 
                         disabled={!isFormValid || isSubmitting}
                         className={`w-full h-16 rounded-2xl font-bold text-lg shadow-xl transition-all active:scale-95 uppercase tracking-wide ${isFormValid && !isSubmitting
                             ? 'bg-primary hover:bg-primary/90 text-white shadow-primary/20'

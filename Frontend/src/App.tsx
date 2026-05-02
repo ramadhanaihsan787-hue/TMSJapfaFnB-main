@@ -34,8 +34,13 @@ import {
   RouteListPage, 
   DeliveryDetailPage, 
   PodCapturePage, 
-  TripSummaryPage 
+  TripSummaryPage, 
+  NavigationPage
 } from './features/driver-app';
+
+// 🌟 FIX CTO: IMPORT HALAMAN KASIR!
+import KasirDashboard from './features/finance/pages/KasirDashboard';
+import KasirHistory from './features/finance/pages/KasirHistory';
 
 // Logistics Layout
 import LogisticsLayout from './shared/components/layouts/LogisticsLayout';
@@ -87,6 +92,14 @@ function App() {
               </Route>
             </Route>
 
+            {/* finance routes */}
+            <Route element={<RoleGuard allowedRoles={['kasir', 'manager_logistik']} />}>
+              <Route element={<LogisticsLayout />}>
+                <Route path="/finance" element={<KasirDashboard />} />
+                <Route path="/finance/history" element={<KasirHistory />} />
+              </Route>
+            </Route>
+
             {/* Driver Routes (Mobile First) */}
             <Route element={<RoleGuard allowedRoles={['driver']} />}>
               <Route path="/driver" element={<DriverappDashboardPage />} />
@@ -94,10 +107,10 @@ function App() {
               <Route path="/driver/detail" element={<DeliveryDetailPage />} />
               <Route path="/driver/pod" element={<PodCapturePage />} />
               <Route path="/driver/summary" element={<TripSummaryPage />} />
+              <Route path="/driver/navigation" element={<NavigationPage />} />
             </Route>
 
             {/* 🌟 CATCH-ALL ROUTE (TARUH PALING BAWAH!) */}
-            {/* Kalau user iseng ngetik URL ngasal, panggil si 404! */}
             <Route path="*" element={<NotFound />} />
             
           </Routes>

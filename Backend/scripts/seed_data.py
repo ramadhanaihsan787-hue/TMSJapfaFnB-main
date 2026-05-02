@@ -2,37 +2,39 @@
 Seed Data - Populate delivery orders and master customers
 """
 import pandas as pd
-import random
 import uuid
+import logging
 from sqlalchemy.orm import Session
-from database import SessionLocal, engine
+from database import SessionLocal
 import models
+
+# 🌟 SETUP LOGGER
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 def seed_data():
     """Seed initial data for testing"""
     db: Session = SessionLocal()
     
     try:
-        print("🔄 Membersihkan tabel data pengiriman...")
+        logger.info("🔄 Membersihkan tabel data pengiriman...")
         db.query(models.TMSEpodHistory).delete()
         db.query(models.TMSRouteLine).delete()
         db.query(models.TMSRoutePlan).delete()
         db.query(models.DeliveryOrder).delete()
         db.commit()
         
-        print("✅ Tabel berhasil dibersihkan!")
+        logger.info("✅ Tabel berhasil dibersihkan!")
         
-        # Try to read delivery data from Excel
         try:
-            print("📊 Membaca file data pengiriman...")
+            logger.info("📊 Membaca file data pengiriman...")
             df = pd.read_excel("data_pengiriman.xlsx")
-            print(f"✅ Membaca {len(df)} data pengiriman")
+            logger.info(f"✅ Membaca {len(df)} data pengiriman")
         except FileNotFoundError:
-            print("⚠️  File data_pengiriman.xlsx tidak ditemukan - skipping")
+            logger.warning("⚠️  File data_pengiriman.xlsx tidak ditemukan - skipping")
             df = None
         
         if df is not None:
-            # Populate delivery orders
             for index, row in df.iterrows():
                 order_id = str(row.get('KODE_ORDER', str(uuid.uuid4())))
                 customer_name = str(row.get('NAMA_CUSTOMER', 'Unknown'))
@@ -51,17 +53,16 @@ def seed_data():
                 db.add(order)
                 
                 if (index + 1) % 100 == 0:
-                    print(f"  ✓ Added {index + 1} orders...")
+                    logger.info(f"  ✓ Added {index + 1} orders...")
             
             db.commit()
-            print(f"✅ Semua {len(df)} data pengiriman berhasil ditambahkan!")
+            logger.info(f"✅ Semua {len(df)} data pengiriman berhasil ditambahkan!")
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        logger.error(f"❌ Error: {e}", exc_info=True)
         db.rollback()
     finally:
         db.close()
-
 
 if __name__ == "__main__":
     seed_data()

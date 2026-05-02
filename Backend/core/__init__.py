@@ -1,7 +1,8 @@
 """
 Core module - Configuration, Security, and Constants
 """
-# 🌟 UBAH: Cuma panggil 'settings', sisanya dibuang biar Pydantic yang urus!
+# Cuma panggil settings, security, dan constants. 
+# Model JANGAN PERNAH di-import di sini biar ngga circular import!
 from .config import settings
 
 from .security import (
@@ -11,17 +12,13 @@ from .security import (
     create_access_token,
 )
 from .constants import *
-from models import UserRole, DOStatus
 
 __all__ = [
     # Config
-    "settings", # 🌟 Masukin 'settings' ke sini
+    "settings", 
     # Security
     "pwd_context",
     "verify_password",
     "get_password_hash",
     "create_access_token",
-    # Enums
-    "UserRole",
-    "DOStatus",
 ]

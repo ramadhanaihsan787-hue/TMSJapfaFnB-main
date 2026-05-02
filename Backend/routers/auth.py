@@ -40,7 +40,7 @@ def register_user(
     data: schemas.RegisterRequest,
     db: Session = Depends(get_db)
 ):
-    VALID_ROLES = ["manager_logistik", "admin_distribusi", "admin_pod", "driver"]
+    VALID_ROLES = ["manager_logistik", "admin_distribusi", "admin_pod", "driver", "kasir"]
     
     if data.role not in VALID_ROLES:
         raise HTTPException(
@@ -85,4 +85,42 @@ def get_all_users(
             }
             for u in users
         ]
+    }
+
+# Tambahkan ini di bagian bawah routers/auth.py
+
+# ==========================================
+# ENDPOINT: GET USER PREFERENCES
+# ==========================================
+@router.get("/auth/preferences", response_model=schemas.UserPreferencesResponse)
+def get_user_preferences(current_user: models.User = Depends(get_current_user)):
+    """Ambil settingan UI khusus buat user yang lagi login"""
+    return {
+        "status": "success",
+        "data": {
+            "autoAdvance": current_user.auto_advance if current_user.auto_advance is not None else False,
+            "soundAlert": current_user.sound_alert if current_user.sound_alert is not None else True,
+            "dataDensity": current_user.data_density if current_user.data_density else "normal"
+        }
+    }
+
+# ==========================================
+# ENDPOINT: UPDATE USER PREFERENCES
+# ==========================================
+@router.put("/auth/preferences", response_model=schemas.GenericResponse)
+def update_user_preferences(
+    prefs: schemas.UserPreferences, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    """Simpan settingan UI user ke Database"""
+    current_user.auto_advance = prefs.autoAdvance
+    current_user.sound_alert = prefs.soundAlert
+    current_user.data_density = prefs.dataDensity
+    
+    db.commit()
+    
+    return {
+        "status": "success", 
+        "message": "Preferensi pengguna berhasil disimpan!"
     }

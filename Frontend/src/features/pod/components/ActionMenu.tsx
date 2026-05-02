@@ -1,3 +1,5 @@
+import { toast } from 'sonner'; // 🌟 SUNTIKAN SONNER!
+
 export interface ActionItem {
     icon: string;
     label: string;
@@ -12,11 +14,11 @@ interface ActionMenuProps {
 }
 
 export default function ActionMenu({ id, currentOpenId, setOpenId, items }: ActionMenuProps) {
-    // Menu default kalau ngga diisi dari luar
+    // 🌟 FIX CTO: Ganti alert jadi toast.info
     const defaultItems: ActionItem[] = [
-        { icon: 'visibility', label: 'Lihat Detail', onClick: () => alert('Lihat Detail') },
-        { icon: 'picture_as_pdf', label: 'Unduh PDF', onClick: () => alert('Unduh PDF') },
-        { icon: 'print', label: 'Cetak Arsip', onClick: () => alert('Cetak Arsip') },
+        { icon: 'visibility', label: 'Lihat Detail', onClick: () => toast.info('Fitur Lihat Detail segera hadir!') },
+        { icon: 'picture_as_pdf', label: 'Unduh PDF', onClick: () => toast.info('Fitur Unduh PDF segera hadir!') },
+        { icon: 'print', label: 'Cetak Arsip', onClick: () => toast.info('Fitur Cetak Arsip segera hadir!') },
     ];
 
     const displayItems = items || defaultItems;

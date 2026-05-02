@@ -1,5 +1,6 @@
 // src/features/analytics/hooks/useAnalytics.ts
 import { useState, useEffect, useCallback } from 'react';
+import { toast } from 'sonner'; // 🌟 SUNTIKAN SONNER!
 import { analyticsService } from '../services/analyticsService';
 import type { KPISummary, FleetUtilization, DeliveryVolume, DriverPerformance } from '../types';
 
@@ -21,7 +22,7 @@ export const useAnalytics = () => {
     const [maxVolume, setMaxVolume] = useState<number>(1);
     const [driverData, setDriverData] = useState<DriverPerformance[]>([]);
     
-    // 🌟 SATU LOADING UNTUK SEMUA (Biar UI ngga kedap-kedip aneh)
+    // 🌟 SATU LOADING UNTUK SEMUA
     const [loading, setLoading] = useState(false);
 
     // 🌟 ENGINE PENARIK DATA
@@ -29,7 +30,7 @@ export const useAnalytics = () => {
         if (!startDate || !endDate) return;
 
         if (new Date(startDate) > new Date(endDate)) {
-            alert("Tanggal Mulai tidak boleh lebih besar dari Tanggal Akhir Bos!");
+            toast.error("Tanggal Mulai tidak boleh lebih besar dari Tanggal Akhir Bos!");
             return;
         }
 
@@ -59,35 +60,30 @@ export const useAnalytics = () => {
     // Helper untuk ngitung tinggi balok chart
     const getBarHeight = (count: number, maxVol: number) => {
         if (count === 0) return "5%"; 
-        const max = maxVol || 1; // Cegah dibagi nol
+        const max = maxVol || 1; 
         return `${(count / max) * 100}%`;
     };
 
-    // 🌟 FIX: Fungsi handle Export (Udah dirapihin ngga ada yang dobel)
+    // 🌟 FUNGSI EXPORT
     const handleExport = async () => {
         try {
-            // 1. Tembak API Export
             const blobData = await analyticsService.exportReport(startDate, endDate);
             
-            // 2. Bikin link virtual di browser buat download
             const url = window.URL.createObjectURL(new Blob([blobData]));
             const link = document.createElement('a');
             link.href = url;
             
-            // 3. Kasih nama file dinamis sesuai tanggal
             link.setAttribute('download', `Laporan_JAPFA_${startDate}_sd_${endDate}.pdf`); 
             
-            // 4. Eksekusi klik download lalu bersihin
             document.body.appendChild(link);
             link.click();
             link.parentNode?.removeChild(link);
             
         } catch (error) {
-            alert("Gagal download laporan. Pastikan Backend sudah siap ngirim file!");
+            toast.error("Gagal download laporan. Pastikan Backend sudah siap ngirim file!");
         }
     };
 
-    // 🌟 FIX: Return block kembali ke jalan yang benar (di luar fungsi handleExport)
     return {
         startDate,
         setStartDate,

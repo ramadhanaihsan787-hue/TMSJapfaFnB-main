@@ -484,3 +484,45 @@ class UserListResponse(BaseModel):
     status: str = "success"
     count: int
     data: List[UserProfileResponse]
+
+# ==========================================
+# 💸 FINANCE & OPERATIONAL EXPENSES SCHEMAS
+# ==========================================
+class ExpenseCreate(BaseModel):
+    id: Optional[str] = None
+    time: str
+    date: str
+    plate: str
+    vehicleType: str
+    driver: str
+    isOncall: bool
+    bbm: float
+    tol: float
+    parkir: float
+    parkirLiar: float
+    kuliAngkut: float
+    lainLain: float
+    helperName: Optional[str] = ""
+    notes: Optional[str] = ""
+    total: float
+
+class ExpenseResponse(ExpenseCreate):
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
+class ExpenseListResponse(BaseModel):
+    status: str = "success"
+    data: List[ExpenseResponse]
+
+# ==========================================
+# 👤 USER PREFERENCES SCHEMAS (BUAT POD SETTINGS)
+# ==========================================
+class UserPreferences(BaseModel):
+    autoAdvance: bool
+    soundAlert: bool
+    dataDensity: str
+
+class UserPreferencesResponse(BaseModel):
+    status: str = "success"
+    data: UserPreferences

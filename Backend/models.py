@@ -12,6 +12,7 @@ class UserRole(enum.Enum):
     admin_distribusi = "admin_distribusi"
     admin_pod = "admin_pod"
     driver = "driver"
+    kasir = "kasir"
 
 class DOStatus(enum.Enum):
     so_waiting_verification = "SO_WAITING_VERIFICATION"
@@ -33,6 +34,10 @@ class User(Base):
     hashed_password = Column(String(100))
     full_name = Column(String(100))
     role = Column(Enum(UserRole))
+
+    auto_advance = Column(Boolean, default=False)
+    sound_alert = Column(Boolean, default=True)
+    data_density = Column(String(20), default="normal")
     
     driver_profile = relationship("HRDriver", back_populates="user_account", uselist=False)
 
@@ -250,3 +255,33 @@ class SystemSettings(Base):
     alert_channel_dashboard = Column(Boolean, default=True)
     alert_channel_email = Column(Boolean, default=True)
     alert_channel_whatsapp = Column(Boolean, default=False)
+
+# ==========================================
+# 9. FINANCE & OPERATIONAL EXPENSES (BARU!)
+# ==========================================
+class OperationalExpense(Base):
+    __tablename__ = "operational_expenses"
+    __table_args__ = {'extend_existing': True}
+    
+    id = Column(String(50), primary_key=True) # Pakai UUID atau generate ID dari frontend
+    time = Column(String(10))
+    date = Column(Date)
+    
+    plate = Column(String(20))
+    vehicle_type = Column(String(20))
+    driver_name = Column(String(100))
+    is_oncall = Column(Boolean, default=False)
+    
+    bbm = Column(Float, default=0.0)
+    tol = Column(Float, default=0.0)
+    parkir = Column(Float, default=0.0)
+    parkir_liar = Column(Float, default=0.0)
+    kuli_angkut = Column(Float, default=0.0)
+    lain_lain = Column(Float, default=0.0)
+    
+    helper_name = Column(String(100), nullable=True)
+    notes = Column(Text, nullable=True)
+    total = Column(Float, default=0.0)
+    
+    created_at = Column(DateTime, default=datetime.datetime.now)
+    updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)

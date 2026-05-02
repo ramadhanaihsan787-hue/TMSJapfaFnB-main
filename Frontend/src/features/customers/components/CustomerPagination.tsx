@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { toast } from 'sonner'; // 🌟 SUNTIKAN SONNER
+
 interface CustomerPaginationProps {
     totalItems: number;
 }
@@ -35,7 +37,8 @@ export default function CustomerPagination({ totalItems }: CustomerPaginationPro
                         </div>
                     )}
                 </div>
-                <button onClick={() => alert("Export functionality coming soon")} className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-[#FF7A00] rounded-lg hover:bg-[#e66a00] transition-colors active:scale-95 duration-150">
+                {/* 🌟 FIX CTO: Ganti alert jadi toast.info */}
+                <button onClick={() => toast.info("Fitur Export Excel sedang dibangun!")} className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-[#FF7A00] rounded-lg hover:bg-[#e66a00] transition-colors active:scale-95 duration-150">
                     <span className="material-symbols-outlined text-base">download</span> Export
                 </button>
                 <button className="w-8 h-8 flex items-center justify-center rounded bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-[#FF7A00] transition-all">

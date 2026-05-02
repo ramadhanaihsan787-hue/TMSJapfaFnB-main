@@ -1,5 +1,6 @@
 // src/features/drivers/components/DriverTableRow.tsx
 import React from 'react';
+import { toast } from 'sonner'; // 🌟 SUNTIKAN SONNER!
 import type { DriverData } from '../types/types';
 import DriverExpandedRow from './DriverExpandedRow';
 
@@ -10,7 +11,6 @@ interface DriverTableRowProps {
 }
 
 export default function DriverTableRow({ driver, isExpanded, onToggle }: DriverTableRowProps) {
-    // Fungsi pembantu buat warna status
     const getStatusStyle = (status: string) => {
         switch(status) {
             case 'On Route': return 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800';
@@ -31,7 +31,6 @@ export default function DriverTableRow({ driver, isExpanded, onToggle }: DriverT
 
     return (
         <React.Fragment>
-            {/* BARIS UTAMA */}
             <tr 
                 onClick={onToggle}
                 className={`transition-colors cursor-pointer ${isExpanded ? 'bg-primary/5 dark:bg-primary/10' : 'hover:bg-slate-50 dark:hover:bg-[#1a1a1a]'}`}
@@ -76,13 +75,13 @@ export default function DriverTableRow({ driver, isExpanded, onToggle }: DriverT
                     {driver.truck}
                 </td>
                 <td className="px-6 py-4 text-right">
-                    <button onClick={(e) => { e.stopPropagation(); alert('Driver action menu clicked!'); }} className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-400 dark:text-slate-500 transition-colors">
+                    {/* 🌟 FIX CTO: Ganti alert jadi toast.info */}
+                    <button onClick={(e) => { e.stopPropagation(); toast.info('Menu aksi Driver segera hadir!'); }} className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-400 dark:text-slate-500 transition-colors">
                         <span className="material-symbols-outlined text-lg">more_vert</span>
                     </button>
                 </td>
             </tr>
 
-            {/* BARIS EXPANSION (Muncul kalau isExpanded true) */}
             {isExpanded && <DriverExpandedRow driver={driver} />}
         </React.Fragment>
     );

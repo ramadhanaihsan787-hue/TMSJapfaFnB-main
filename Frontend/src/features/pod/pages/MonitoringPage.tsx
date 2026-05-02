@@ -1,21 +1,17 @@
 import React, { useState } from "react";
+import { toast } from 'sonner'; // 🌟 SUNTIKAN SONNER!
 import Header from "../../../shared/components/Header";
 import ActionMenu from "../components/ActionMenu";
-import { usePod } from '../hooks/usePod'; // 🌟 1. Panggil mesin penyedot data
+import { usePod } from '../hooks/usePod'; 
 
 export default function MonitoringPage() {
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [openActionId, setOpenActionId] = useState<number | null>(null);
-    
-    // 🌟 2. State buat buka-tutup detail truk (Biar fiturnya beneran idup!)
     const [isExpanded, setIsExpanded] = useState(true);
 
-    // 🌟 3. Ekstrak data dari backend
     const { orders, isLoading, error } = usePod();
 
-    // 🌟 4. Kalkulasi KPI Dinamis
     const totalTarget = orders.length;
-    // Asumsi: do_verified itu udah divalidasi sistem, kalau ada status lain bisa disesuaikan
     const verifiedCount = orders.filter(o => o.status === 'do_verified').length; 
     const waitingCount = totalTarget - verifiedCount;
     const progressPercentage = totalTarget === 0 ? 0 : Math.round((verifiedCount / totalTarget) * 100);
@@ -25,9 +21,6 @@ export default function MonitoringPage() {
             <Header title="Monitoring Harian" />
 
             <div className="p-8 space-y-8">
-                {/* ========================================== */}
-                {/* KPI BAR - SEKARANG HIDUP DARI DATABASE! */}
-                {/* ========================================== */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="bg-white dark:bg-[#1a1a1a] p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
                         <div className="flex justify-between items-start">
@@ -90,11 +83,7 @@ export default function MonitoringPage() {
                     </div>
                 </div>
 
-                {/* ========================================== */}
-                {/* TABLE SECTION */}
-                {/* ========================================== */}
                 <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
-                    {/* Header Tabel (Tidak ada yang diubah) */}
                     <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-[#1a1a1a]">
                         <h3 className="font-bold text-lg dark:text-white">Tabel Pemantauan Truk</h3>
                         <div className="flex items-center gap-2">
@@ -121,7 +110,8 @@ export default function MonitoringPage() {
                                         </div>
                                     )}
                                 </div>
-                                <button onClick={() => alert("Feature coming soon!")} className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-primary bg-primary/10 rounded-lg hover:bg-primary/20 transition-colors active:scale-95">
+                                {/* 🌟 FIX CTO: Ganti alert jadi toast.info */}
+                                <button onClick={() => toast.info("Fitur Export segera hadir!")} className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-primary bg-primary/10 rounded-lg hover:bg-primary/20 transition-colors active:scale-95">
                                     <span className="material-symbols-outlined text-base">download</span> Export
                                 </button>
                             </div>
@@ -141,7 +131,6 @@ export default function MonitoringPage() {
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
                                 
-                                {/* Handling State */}
                                 {isLoading && (
                                     <tr><td colSpan={5} className="py-8 text-center text-slate-500 font-bold">Memuat data monitoring... ⏳</td></tr>
                                 )}
@@ -149,7 +138,6 @@ export default function MonitoringPage() {
                                     <tr><td colSpan={5} className="py-8 text-center text-red-500 font-bold">🚨 Gagal memuat data</td></tr>
                                 )}
 
-                                {/* 🌟 PARENT ROW: TRUK VIRTUAL (Karena VRP Belum Jalan) */}
                                 {!isLoading && !error && orders.length > 0 && (
                                     <React.Fragment>
                                         <tr className="bg-slate-50/50 dark:bg-[#222]/50 hover:bg-slate-100 dark:hover:bg-[#333] transition-colors cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
@@ -180,21 +168,20 @@ export default function MonitoringPage() {
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-right">
-                                                {/* Stop propagation biar klik tombol ngga nge-trigger expand baris */}
                                                 <div onClick={(e) => e.stopPropagation()}>
                                                     <ActionMenu 
                                                         id={999} 
                                                         currentOpenId={openActionId} 
                                                         setOpenId={setOpenActionId} 
                                                         items={[
-                                                            { icon: 'route', label: 'Jalankan VRP Engine', onClick: () => alert('Fitur VRP segera hadir!') }
+                                                            // 🌟 FIX CTO: Ganti alert jadi toast.info
+                                                            { icon: 'route', label: 'Jalankan VRP Engine', onClick: () => toast.info('Fitur VRP segera hadir!') }
                                                         ]}
                                                     />
                                                 </div>
                                             </td>
                                         </tr>
 
-                                        {/* 🌟 CHILD ROWS: LOOPING DATA DO SEBAGAI STOPS */}
                                         {isExpanded && (
                                             <tr className="bg-white dark:bg-[#1a1a1a] border-l-4 border-primary">
                                                 <td className="px-6 py-0" colSpan={5}>
@@ -203,7 +190,6 @@ export default function MonitoringPage() {
                                                         <div className="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
                                                             
                                                             {orders.map((order, index) => {
-                                                                // Penentuan style berdasarkan status (disesuaikan dengan style asli lu)
                                                                 const isVerified = order.status === 'do_verified' || order.status === 'pod_verified';
                                                                 const boxStyle = isVerified 
                                                                     ? "border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-900/10" 
@@ -230,14 +216,16 @@ export default function MonitoringPage() {
                                                                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${badgeStyle}`}>{badgeText}</span>
                                                                             
                                                                             {!isVerified ? (
-                                                                                <button onClick={() => alert("Menuju halaman verifikasi...")} className="px-3 py-1 bg-primary text-white text-[10px] font-bold rounded-lg hover:bg-primary/90 transition-colors cursor-pointer active:scale-95">Verify Now</button>
+                                                                                // 🌟 FIX CTO: Ganti alert jadi toast.info
+                                                                                <button onClick={() => toast.info("Menuju halaman verifikasi...")} className="px-3 py-1 bg-primary text-white text-[10px] font-bold rounded-lg hover:bg-primary/90 transition-colors cursor-pointer active:scale-95">Verify Now</button>
                                                                             ) : (
                                                                                 <ActionMenu 
                                                                                     id={`doc-${order.order_id}` as any} 
                                                                                     currentOpenId={openActionId} 
                                                                                     setOpenId={setOpenActionId} 
                                                                                     items={[
-                                                                                        { icon: 'description', label: 'View Document', onClick: () => alert('Lihat Dokumen: ' + order.order_id) }
+                                                                                        // 🌟 FIX CTO: Ganti alert jadi toast.info
+                                                                                        { icon: 'description', label: 'View Document', onClick: () => toast.info('Lihat Dokumen: ' + order.order_id) }
                                                                                     ]}
                                                                                 />
                                                                             )}
@@ -258,11 +246,9 @@ export default function MonitoringPage() {
                         </table>
                     </div>
                     
-                    {/* Footer / Pagination */}
                     <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-[#1a1a1a]">
                         <p className="text-sm text-slate-500 italic">Menampilkan {orders.length > 0 ? 1 : 0}-{orders.length} DO yang belum dialokasikan</p>
                         <div className="flex items-center gap-1">
-                            {/* Tombol statis tetep dipertahanin sesuai desain lu */}
                             <button className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-[#222] rounded-lg transition-colors"><span className="material-symbols-outlined">first_page</span></button>
                             <button className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-[#222] rounded-lg transition-colors"><span className="material-symbols-outlined">chevron_left</span></button>
                             <button className="w-8 h-8 flex items-center justify-center bg-primary text-white rounded font-bold text-xs">1</button>

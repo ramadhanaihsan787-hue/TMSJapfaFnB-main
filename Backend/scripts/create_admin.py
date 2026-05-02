@@ -1,10 +1,15 @@
 """
 Create Default Admin Users
 """
+import logging
 from database import SessionLocal
 from core.security import get_password_hash
 from core.enums import UserRole
 import models
+
+# 🌟 SETUP LOGGER KHUSUS SCRIPT
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 def create_default_users():
     """Create default admin and test users"""
@@ -14,10 +19,10 @@ def create_default_users():
         # Check if users already exist
         existing = db.query(models.User).first()
         if existing:
-            print("⚠️  User sudah ada!")
-            print("Users yang terdaftar:")
+            logger.warning("⚠️  User sudah ada!")
+            logger.info("Users yang terdaftar:")
             for u in db.query(models.User).all():
-                print(f"  - {u.username} ({u.role.value})")
+                logger.info(f"  - {u.username} ({u.role.value})")
             return
         
         # Define default users
@@ -57,13 +62,13 @@ def create_default_users():
                 role=user_data["role"]
             )
             db.add(new_user)
-            print(f"✅ Created user: {user_data['username']}")
+            logger.info(f"✅ Created user: {user_data['username']}")
         
         db.commit()
-        print("\n✅ Semua default user berhasil dibuat!")
+        logger.info("\n✅ Semua default user berhasil dibuat!")
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        logger.error(f"❌ Error: {e}", exc_info=True)
         db.rollback()
     finally:
         db.close()

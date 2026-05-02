@@ -24,7 +24,7 @@ export interface User {
   created_at: string;
 }
 
-export type UserRole = "admin_distribusi" | "manager_logistik" | "admin_pod" | "driver";
+export type UserRole = "admin_distribusi" | "manager_logistik" | "admin_pod" | "driver" | "kasir";
 
 // ============= ORDER TYPES =============
 export interface Order {

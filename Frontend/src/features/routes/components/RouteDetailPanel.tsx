@@ -1,8 +1,8 @@
 // src/features/routes/components/RouteDetailPanel.tsx
 import React, { useState } from "react";
+import { toast } from 'sonner'; // 🌟 SUNTIKAN SONNER!
 import type { RouteItem } from "../types";
 
-// 🌟 FUNGSI FORMAT WAKTU PINDAH KE SINI
 const formatTimeWindow = (timeStr: string, weight: number) => {
     if (!timeStr) return "-";
     const cleanedTimeStr = timeStr.substring(0, 5);
@@ -23,7 +23,7 @@ interface RouteDetailPanelProps {
     onToggleFocus: () => void;
     showMapView: boolean;
     onToggleMapView: () => void;
-    mapComponent?: React.ReactNode; // 🌟 CTO TRICK: Komponen Map di-inject dari luar!
+    mapComponent?: React.ReactNode; 
 }
 
 export default function RouteDetailPanel({ 
@@ -38,7 +38,6 @@ export default function RouteDetailPanel({
 
     return (
         <div className="space-y-4 transition-all duration-300 h-full flex flex-col">
-            {/* HEADER PANEL */}
             <div className="flex items-center justify-between">
                 <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                     <span className="material-symbols-outlined text-slate-400">timeline</span> 
@@ -55,15 +54,12 @@ export default function RouteDetailPanel({
                 </div>
             </div>
 
-            {/* BODY PANEL (Bisa Toggle antara Map atau List Rute) */}
             <div className="bg-white dark:bg-[#1F1F1F] border border-slate-200 dark:border-[#333] rounded-xl shadow-sm overflow-hidden flex flex-col min-h-[500px] flex-1">
                 {showMapView ? (
-                    // TAMPILAN PETA
                     <div className="flex-1 bg-slate-100 dark:bg-[#1A1A1A] flex flex-col relative w-full h-full min-h-[500px] z-0">
                         {mapComponent}
                     </div>
                 ) : (
-                    // TAMPILAN DAFTAR RUTE (LIST VIEW)
                     selectedRoute ? (
                         <div className="p-8 flex-1 overflow-y-auto max-h-[600px] custom-scrollbar">
                             <div className="space-y-0 relative">
@@ -89,7 +85,7 @@ export default function RouteDetailPanel({
                                     </div>
                                 </div>
 
-                                {/* LOOPING DESTINASI (TOKO-TOKO) MENGGUNAKAN CAMELCASE */}
+                                {/* LOOPING DESTINASI */}
                                 {selectedRoute.details.map((stop, idx) => (
                                     <div key={idx} className="relative pl-10 pb-10">
                                         <div
@@ -118,7 +114,6 @@ export default function RouteDetailPanel({
                                             </div>
                                         </div>
 
-                                        {/* ACCORDION RINCIAN BARANG */}
                                         {expandedStopIdx === idx && stop.items && stop.items.length > 0 && (
                                             <div className="mt-4 bg-slate-50 dark:bg-[#1A1A1A] p-4 rounded-xl border border-slate-200 dark:border-[#333] animate-in slide-in-from-top-2 fade-in duration-200">
                                                 <h5 className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2 uppercase">
@@ -146,12 +141,12 @@ export default function RouteDetailPanel({
                     )
                 )}
 
-                {/* FOOTER BUTTONS (PRINT & SEND TO DRIVER) */}
                 <div className="bg-slate-50 dark:bg-[#1A1A1A] p-6 flex items-center justify-end gap-3 border-t border-slate-200 dark:border-[#333] mt-auto">
                     <button type="button" onClick={() => window.print()} disabled={!selectedRoute} className="px-6 py-2.5 bg-white dark:bg-[#1F1F1F] border border-slate-300 dark:border-[#333] text-slate-700 dark:text-white font-bold rounded-lg hover:bg-slate-100 dark:hover:bg-[#2A2A2A] text-sm flex items-center gap-2 disabled:opacity-50">
                         <span className="material-symbols-outlined text-lg">picture_as_pdf</span> Cetak Surat Jalan (PDF)
                     </button>
-                    <button type="button" onClick={() => alert(`Jadwal berhasil dikirim ke HP Supir: ${selectedRoute?.driverName}!`)} disabled={!selectedRoute} className="px-8 py-2.5 bg-primary text-white font-bold rounded-lg hover:brightness-110 text-sm shadow-lg shadow-primary/25 flex items-center gap-2 disabled:opacity-50">
+                    {/* 🌟 FIX CTO: Ganti alert jadi toast.success */}
+                    <button type="button" onClick={() => toast.success(`Jadwal berhasil dikirim ke HP Supir: ${selectedRoute?.driverName}!`)} disabled={!selectedRoute} className="px-8 py-2.5 bg-primary text-white font-bold rounded-lg hover:brightness-110 text-sm shadow-lg shadow-primary/25 flex items-center gap-2 disabled:opacity-50">
                         <span className="material-symbols-outlined text-lg">done_all</span> Kirim ke HP Supir
                     </button>
                 </div>

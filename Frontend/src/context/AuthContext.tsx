@@ -1,8 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode'; // Alat buat ngebelah token
 
-// 🌟 Sesuaikan sama enum UserRole di Backend lu!
-export type Role = 'admin_distribusi' | 'manager_logistik' | 'admin_pod' | 'driver' | null;
+export type Role = 'admin_distribusi' | 'manager_logistik' | 'admin_pod' | 'driver' | 'kasir' | null;
 
 interface UserData {
   username: string;

@@ -5,6 +5,11 @@ import pandas as pd
 import random
 import sys
 import os
+import logging
+
+# 🌟 SETUP LOGGER
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+logger = logging.getLogger(__name__)
 
 # Biar bisa ngebaca folder Backend utama
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -16,54 +21,48 @@ def seed_customer():
     db = SessionLocal()
     
     try:
-        print("📊 Membaca file data_customer Excel...")
+        logger.info("📊 Membaca file data_customer Excel...")
         df = pd.read_excel('data/data_customer.xlsx')
     except Exception as e:
-        print(f"❌ Gagal membaca file: {e}")
+        logger.error(f"❌ Gagal membaca file: {e}")
         return
 
     try:
-        print("🔄 Menghapus data customer lama...")
+        logger.info("🔄 Menghapus data customer lama...")
         db.query(models.MasterCustomer).delete() 
         db.commit()
-        print("✅ Data lama berhasil dihapus.")
+        logger.info("✅ Data lama berhasil dihapus.")
     except Exception as e:
         db.rollback()
-        print("ℹ️ Belum ada data lama, lanjut...")
+        logger.info("ℹ️ Belum ada data lama, lanjut...")
 
-    print("📍 Menyuntikkan Data Customer JAPFA & Auto-Generate Koordinat...")
-    print("-" * 80)
+    logger.info("📍 Menyuntikkan Data Customer JAPFA & Auto-Generate Koordinat...")
+    logger.info("-" * 80)
     
     sukses = 0
     kembar = 0
-    seen_codes = set() # 🌟 SATPAM ANTI-DUPLIKAT!
+    seen_codes = set() 
     
     for index, row in df.iterrows():
-        # Handle angka CUST CODE yang kadang dibaca jadi float
         cust_code_raw = row.get('CUST CODE', '')
         if pd.isna(cust_code_raw):
             continue
             
         cust_code = str(cust_code_raw).split('.')[0].strip()
         
-        # 🌟 CEK JIKA KODE KOSONG ATAU UDAH PERNAH MASUK (DUPLIKAT EXCEL)
-        if not cust_code:
+        if not cust_code or cust_code in seen_codes:
+            if cust_code in seen_codes:
+                kembar += 1
             continue
-        if cust_code in seen_codes:
-            kembar += 1
-            continue # Lewatin toko duplikat!
             
-        # Catat kode ke buku tamu Satpam
         seen_codes.add(cust_code)
 
-        # Tarik data CSV
         nama_toko = str(row.get('NAMA TOKO', '')).strip()
         alamat = str(row.get('ALAMAT', '')).strip()
         kecamatan = str(row.get('KECAMATAN/RT/RW', '')).strip()
         kota = str(row.get('KOTA/KAB', '')).strip()
         admin = str(row.get('ADMIN', '')).strip()
         
-        # Bersihin text "nan"
         alamat = alamat if alamat != 'nan' else '-'
         kecamatan = kecamatan if kecamatan != 'nan' else '-'
         kota = kota if kota != 'nan' else '-'
@@ -72,7 +71,6 @@ def seed_customer():
         lat_raw = row.get('LATITUDE')
         lon_raw = row.get('LONGITUDE')
         
-        # 🌟 JURUS KERA SAKTI: Kalau kosong, tebar acak di sekitar Jakarta/Tangerang!
         if pd.isna(lat_raw) or pd.isna(lon_raw) or str(lat_raw).strip() == '' or str(lon_raw).strip() == '':
             lat = round(random.uniform(-6.350000, -6.100000), 6)
             lon = round(random.uniform(106.700000, 106.950000), 6)
@@ -82,7 +80,6 @@ def seed_customer():
             lon = float(lon_raw)
             status_kordinat = "✅ REAL KOORD "
 
-        # Eksekusi ke Database!
         try:
             new_customer = models.MasterCustomer(
                 kode_customer=cust_code,
@@ -97,20 +94,20 @@ def seed_customer():
             )
             db.add(new_customer)
             sukses += 1
-            print(f"{status_kordinat} | {cust_code:10} | {nama_toko[:25]:25} | Lat: {lat}, Lon: {lon}")
+            logger.info(f"{status_kordinat} | {cust_code:10} | {nama_toko[:25]:25} | Lat: {lat}, Lon: {lon}")
         except Exception as e:
-            print(f"❌ Error baris {index}: {e}")
+            logger.error(f"❌ Error baris {index}: {e}")
             break
 
     try:
         db.commit()
-        print("-" * 80)
-        print(f"🚀 SEEDING CUSTOMER SELESAI!")
-        print(f"✅ {sukses} Toko berhasil disuntik masuk!")
-        print(f"♻️  {kembar} Toko duplikat berhasil dilewati (di-skip)!")
+        logger.info("-" * 80)
+        logger.info(f"🚀 SEEDING CUSTOMER SELESAI!")
+        logger.info(f"✅ {sukses} Toko berhasil disuntik masuk!")
+        logger.info(f"♻️  {kembar} Toko duplikat berhasil dilewati!")
     except Exception as e:
         db.rollback()
-        print(f"❌ Gagal Simpan Database: {e}")
+        logger.error(f"❌ Gagal Simpan Database: {e}")
     finally:
         db.close()
 

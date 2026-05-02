@@ -1,5 +1,6 @@
 // src/features/routes/components/UploadVerificationModal.tsx
 import React, { useState } from "react";
+import { toast } from 'sonner'; // 🌟 SUNTIKAN SONNER!
 import type { UploadResult } from "../types";
 
 interface UploadVerificationModalProps {
@@ -21,7 +22,8 @@ export default function UploadVerificationModal({ uploadReport, onClose, onSaveC
 
     const handleSave = async (idx: number, item: UploadResult) => {
         const coords = failedCoords[idx];
-        if (!coords || !coords.lat || !coords.lon) return alert("Isi Latitude dan Longitude dulu Bos!");
+        // 🌟 FIX CTO: Ganti alert jadi toast.error
+        if (!coords || !coords.lat || !coords.lon) return toast.error("Isi Latitude dan Longitude dulu Bos!");
         
         try {
             await onSaveCoord(idx, item.customerCode || item.storeName, item.storeName, parseFloat(coords.lat), parseFloat(coords.lon));
@@ -80,7 +82,6 @@ export default function UploadVerificationModal({ uploadReport, onClose, onSaveC
                                                     <input type="time" defaultValue={item.maxTime || "20:00"} onChange={(e) => item.orderId && onUpdateTime(item.orderId, e.target.value)} className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm font-bold w-full" />
                                                 </td>
                                             </tr>
-                                            {/* Rincian Item (Accordion) disembunyikan di sini untuk mempersingkat, bisa ditambahkan sesuai versi lama lu jika diperlukan */}
                                         </React.Fragment>
                                     ))}
                                 </tbody>

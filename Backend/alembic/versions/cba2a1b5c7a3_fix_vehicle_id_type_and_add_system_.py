@@ -7,7 +7,7 @@ Create Date: 2024-xx-xx xx:xx:xx.xxxxxx
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
+from sqlalchemy.engine.reflection import Inspector # 🌟 SUNTIKAN CTO: Pake Inspector!
 
 # revision identifiers, used by Alembic.
 revision = 'cba2a1b5c7a3'
@@ -24,58 +24,37 @@ def upgrade():
     3. Tambah kolom box dimensi ke fleet_vehicles
     4. Buat tabel system_settings baru
     """
+    # Siapin alat detektif (Inspector) buat ngecek database langsung
+    conn = op.get_bind()
+    inspector = Inspector.from_engine(conn)
     
     # 1. Drop tabel customer_master yang duplikat (kalau ada)
-    # Pakai try-except karena mungkin tabel ini belum ada di beberapa environment
     op.execute("DROP TABLE IF EXISTS customer_master CASCADE")
     
-    # 2. Tambah kolom ke master_customers (cek dulu apakah kolom sudah ada)
-    # Gunakan batch_alter_table untuk PostgreSQL
+    # 2. Tambah kolom ke master_customers
+    master_cust_cols = [c['name'] for c in inspector.get_columns('master_customers')]
     with op.batch_alter_table('master_customers', schema=None) as batch_op:
-        # Cek dan tambah kolom satu per satu
-        try:
+        if 'district' not in master_cust_cols:
             batch_op.add_column(sa.Column('district', sa.String(length=100), nullable=True))
-        except:
-            pass  # Kolom sudah ada
-        
-        try:
+        if 'city' not in master_cust_cols:
             batch_op.add_column(sa.Column('city', sa.String(length=100), nullable=True))
-        except:
-            pass
-        
-        try:
+        if 'admin_name' not in master_cust_cols:
             batch_op.add_column(sa.Column('admin_name', sa.String(length=100), nullable=True))
-        except:
-            pass
-        
-        try:
+        if 'status' not in master_cust_cols:
             batch_op.add_column(sa.Column('status', sa.String(length=20), server_default='Active'))
-        except:
-            pass
     
     # 3. Tambah kolom box dimensi ke fleet_vehicles
+    fleet_cols = [c['name'] for c in inspector.get_columns('fleet_vehicles')]
     with op.batch_alter_table('fleet_vehicles', schema=None) as batch_op:
-        try:
+        if 'box_length_cm' not in fleet_cols:
             batch_op.add_column(sa.Column('box_length_cm', sa.Integer(), server_default='400'))
-        except:
-            pass
-        
-        try:
+        if 'box_width_cm' not in fleet_cols:
             batch_op.add_column(sa.Column('box_width_cm', sa.Integer(), server_default='200'))
-        except:
-            pass
-        
-        try:
+        if 'box_height_cm' not in fleet_cols:
             batch_op.add_column(sa.Column('box_height_cm', sa.Integer(), server_default='200'))
-        except:
-            pass
     
     # 4. Buat tabel system_settings baru
-    # Cek dulu apakah tabel sudah ada
-    connection = op.get_bind()
-    inspector = sa.inspect(connection)
     tables = inspector.get_table_names()
-    
     if 'system_settings' not in tables:
         op.create_table(
             'system_settings',

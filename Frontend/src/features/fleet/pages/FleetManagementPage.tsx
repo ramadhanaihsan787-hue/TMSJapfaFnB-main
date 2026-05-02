@@ -1,9 +1,9 @@
+// src/features/fleet/pages/FleetManagementPage.tsx
 import Header from "../../../shared/components/Header"; 
+import { toast } from 'sonner'; // 🌟 SUNTIKAN SONNER!
 
-// 🌟 IMPORT HOOK SAKTI KITA
 import { useFleet } from "../hooks/index";
 
-// 🌟 IMPORT SEMUA KOMPONEN UI YANG UDAH KITA PECAH
 import { 
     FleetSummaryCards, 
     FleetTable, 
@@ -11,8 +11,6 @@ import {
 } from "../components";
 
 export default function FleetManagementPage() {
-    // 🌟 PANGGIL SEMUA DATA DARI HOOK PUSAT
-    // Otomatis narik API, nerjemahin data, ngitung KPI, dan ngurus telematics!
     const { 
         loading, 
         fleetList, 
@@ -24,17 +22,18 @@ export default function FleetManagementPage() {
 
     // ================= HANDLERS BUAT ACTION BUTTONS =================
     const handleAssignDriver = () => {
-        // Nanti bisa disambungin ke Modal Assign Driver
-        alert(`Menu Ganti Supir untuk truk ${selectedTruck?.licensePlate} dibuka!`);
+        // 🌟 FIX CTO: Ganti alert jadi toast.info
+        toast.info(`Menu Ganti Supir untuk truk ${selectedTruck?.licensePlate} dibuka!`);
     };
 
     const handleReportIssue = () => {
-        // Nanti bisa disambungin ke Modal Servis
-        alert(`Form Laporan Servis truk ${selectedTruck?.licensePlate} dibuka!`);
+        // 🌟 FIX CTO: Ganti alert jadi toast.warning
+        toast.warning(`Form Laporan Servis truk ${selectedTruck?.licensePlate} dibuka!`);
     };
 
     const handleInputFuel = () => {
-        alert("Input Resi Bensin via E-POD Supir atau buka form manual!");
+        // 🌟 FIX CTO: Ganti alert jadi toast.info
+        toast.info("Input Resi Bensin via E-POD Supir atau buka form manual!");
     };
 
     return (
@@ -47,13 +46,11 @@ export default function FleetManagementPage() {
                 {/* 🌟 KONTEN KIRI/TENGAH (SCROLLABLE) */}
                 <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 md:space-y-8 custom-scrollbar">
                     
-                    {/* 4 Kartu KPI Atas */}
                     <FleetSummaryCards 
                         loading={loading} 
                         kpi={kpi} 
                     />
 
-                    {/* Tabel Daftar Truk */}
                     <FleetTable 
                         loading={loading}
                         fleetList={fleetList}
