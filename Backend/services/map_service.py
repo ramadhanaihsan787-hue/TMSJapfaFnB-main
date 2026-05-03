@@ -8,14 +8,20 @@ import logging # 🌟 FIX CTO: Pakai proper logging, bukan print!
 logger = logging.getLogger(__name__)
 
 def calculate_haversine(lat1, lon1, lat2, lon2) -> int:
-    """Jarak garis lurus bumi dalam meter"""
-    R = 6371
+    """Jarak garis lurus bumi dalam meter (Rumus Akurat)"""
+    R = 6371.0 # Radius bumi dalam Kilometer (pakai float biar akurat)
+    
+    # Konversi ke Radian
+    lat1_rad = math.radians(lat1)
+    lat2_rad = math.radians(lat2)
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
-    a = (math.sin(dlat/2) ** 2 +
-         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
-         math.sin(dlon/2) ** 2)
+    
+    # Rumus Haversine standar
+    a = math.sin(dlat / 2.0)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2.0)**2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    
+    # Hasil akhir ubah ke meter (int)
     return int(R * c * 1000) 
 
 def build_tomtom_matrix(locations: list, api_key: str):
@@ -77,7 +83,8 @@ def build_haversine_matrix(locations: list):
     for i in range(n):
         for j in range(n):
             if i != j:
-                dist = calculate_haversine(locations[i]["lat"], locations[i]["lon"], locations[j]["lat"], locations[j]["lat"])
+                # SESUDAH FIX
+                dist = calculate_haversine(locations[i]["lat"], locations[i]["lon"], locations[j]["lat"], locations[j]["lon"])
                 distance_matrix[i][j] = dist
                 time_matrix[i][j] = int(dist / 400) 
     return distance_matrix, time_matrix

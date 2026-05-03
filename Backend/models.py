@@ -257,19 +257,20 @@ class SystemSettings(Base):
     alert_channel_whatsapp = Column(Boolean, default=False)
 
 # ==========================================
-# 9. FINANCE & OPERATIONAL EXPENSES (BARU!)
+# 9. FINANCE & OPERATIONAL EXPENSES (FIXED DENGAN FOREIGN KEY)
 # ==========================================
 class OperationalExpense(Base):
     __tablename__ = "operational_expenses"
     __table_args__ = {'extend_existing': True}
     
-    id = Column(String(50), primary_key=True) # Pakai UUID atau generate ID dari frontend
+    id = Column(String(50), primary_key=True) 
     time = Column(String(10))
     date = Column(Date)
     
-    plate = Column(String(20))
-    vehicle_type = Column(String(20))
-    driver_name = Column(String(100))
+    # 🌟 FIX CTO: Jangan string manual! Pake Foreign Key!
+    vehicle_id = Column(Integer, ForeignKey("fleet_vehicles.vehicle_id"), nullable=True)
+    driver_id = Column(Integer, ForeignKey("hr_drivers.driver_id"), nullable=True)
+    
     is_oncall = Column(Boolean, default=False)
     
     bbm = Column(Float, default=0.0)
@@ -285,3 +286,7 @@ class OperationalExpense(Base):
     
     created_at = Column(DateTime, default=datetime.datetime.now)
     updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
+
+    # 🌟 FIX CTO: Bikin Jembatan Relasi ke Tabel Lain
+    vehicle = relationship("FleetVehicle", backref="expenses")
+    driver = relationship("HRDriver", backref="expenses")

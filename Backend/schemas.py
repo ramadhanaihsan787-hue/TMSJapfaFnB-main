@@ -492,9 +492,11 @@ class ExpenseCreate(BaseModel):
     id: Optional[str] = None
     time: str
     date: str
-    plate: str
-    vehicleType: str
-    driver: str
+    
+    # 🌟 FIX CTO: Frontend sekarang harus ngirim ID, bukan ngetik string manual!
+    vehicle_id: Optional[int] = None
+    driver_id: Optional[int] = None
+    
     isOncall: bool
     bbm: float
     tol: float
@@ -506,7 +508,28 @@ class ExpenseCreate(BaseModel):
     notes: Optional[str] = ""
     total: float
 
-class ExpenseResponse(ExpenseCreate):
+# 🌟 FIX CTO: Kita bikin skema khusus buat nampilin data di tabel Frontend
+class ExpenseResponse(BaseModel):
+    id: str
+    time: str
+    date: str
+    
+    # Ini yang dibalikin ke frontend hasil dari "nyebrang" relasi database
+    plate: str
+    vehicleType: str
+    driver: str
+    
+    isOncall: bool
+    bbm: float
+    tol: float
+    parkir: float
+    parkirLiar: float
+    kuliAngkut: float
+    lainLain: float
+    helperName: Optional[str] = None
+    notes: Optional[str] = None
+    total: float
+
     class Config:
         from_attributes = True
         populate_by_name = True

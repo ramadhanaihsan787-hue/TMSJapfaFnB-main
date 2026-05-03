@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import Optional
+from datetime import date
 
 import models
 import schemas
@@ -17,11 +18,14 @@ router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
 # ==========================================
 @router.get("/kpi-summary")
 def get_kpi_summary(
-    startDate: str, 
-    endDate: str, 
+    startDate: Optional[str] = None, 
+    endDate: Optional[str] = None,   
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ): 
+    if not startDate: startDate = str(date.today())
+    if not endDate: endDate = str(date.today())
+    
     settings = get_settings()
     return analytics_service.get_kpi_summary(db, startDate, endDate, settings)
 
@@ -30,11 +34,14 @@ def get_kpi_summary(
 # ==========================================
 @router.get("/delivery-volume")
 def get_delivery_volume(
-    startDate: str, 
-    endDate: str,
+    startDate: Optional[str] = None, 
+    endDate: Optional[str] = None,   
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
+    if not startDate: startDate = str(date.today())
+    if not endDate: endDate = str(date.today())
+
     return analytics_service.get_delivery_volume(db, startDate, endDate)
 
 # ==========================================
@@ -42,11 +49,14 @@ def get_delivery_volume(
 # ==========================================
 @router.get("/fleet-utilization")
 def get_fleet_utilization(
-    startDate: str, 
-    endDate: str,
+    startDate: Optional[str] = None, # 🌟 FIX: Divaksin!
+    endDate: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
+    if not startDate: startDate = str(date.today())
+    if not endDate: endDate = str(date.today())
+    
     return analytics_service.get_fleet_utilization(db, startDate, endDate)
 
 # ==========================================
@@ -54,11 +64,14 @@ def get_fleet_utilization(
 # ==========================================
 @router.get("/driver-performance")
 def get_driver_performance(
-    startDate: str, 
-    endDate: str,
+    startDate: Optional[str] = None, # 🌟 FIX: Divaksin!
+    endDate: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
+    if not startDate: startDate = str(date.today())
+    if not endDate: endDate = str(date.today())
+    
     return analytics_service.get_driver_performance(db, startDate, endDate)
 
 # ==========================================
@@ -97,11 +110,14 @@ def get_monitoring_alerts():
 # ==========================================
 @router.get("/rejections")
 def get_rejection_analysis(
-    startDate: str = None, 
-    endDate: str = None,
+    startDate: Optional[str] = None, # 🌟 FIX: Divaksin!
+    endDate: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
+    if not startDate: startDate = str(date.today())
+    if not endDate: endDate = str(date.today())
+    
     return analytics_service.get_rejection_analysis(db, startDate, endDate)
 
 # ==========================================

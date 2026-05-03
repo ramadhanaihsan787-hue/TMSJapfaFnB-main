@@ -7,8 +7,36 @@ import uuid
 import models
 import schemas
 from dependencies import get_db, get_current_user, require_role
+import logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/finance", tags=["Finance & Expenses"])
+
+# ==========================================
+# HELPER FUNCTIONS
+# ==========================================
+def expense_to_dict(e: models.OperationalExpense) -> dict:
+    """Helper buat mapping data DB ke format Frontend biar DRY"""
+    return {
+        "id": e.id,
+        "time": e.time,
+        "date": str(e.date),
+        # 🌟 FIX CTO: Narik data nyebrang lewat relasi (Ngga Hardcoded)
+        "plate": e.vehicle.license_plate if e.vehicle else "N/A",
+        "vehicleType": e.vehicle.type if e.vehicle else "N/A",
+        "driver": e.driver.name if e.driver else "N/A",
+        
+        "isOncall": e.is_oncall,
+        "bbm": e.bbm,
+        "tol": e.tol,
+        "parkir": e.parkir,
+        "parkirLiar": e.parkir_liar,
+        "kuliAngkut": e.kuli_angkut,
+        "lainLain": e.lain_lain,
+        "helperName": e.helper_name,
+        "notes": e.notes,
+        "total": e.total
+    }
 
 # 1. BIKIN PENGELUARAN BARU
 @router.post("/expenses", response_model=schemas.GenericResponse)
@@ -22,9 +50,11 @@ def create_expense(
             id=data.id if data.id else str(uuid.uuid4()),
             time=data.time,
             date=datetime.strptime(data.date, "%Y-%m-%d").date(),
-            plate=data.plate,
-            vehicle_type=data.vehicleType,
-            driver_name=data.driver,
+            
+            # 🌟 FIX CTO: Simpan ID relasinya, bukan string manual!
+            vehicle_id=data.vehicle_id,
+            driver_id=data.driver_id,
+            
             is_oncall=data.isOncall,
             bbm=data.bbm,
             tol=data.tol,
@@ -41,7 +71,8 @@ def create_expense(
         return {"status": "success", "message": "Biaya operasional berhasil dicatat."}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"🚨 [CREATE EXPENSE] DB Error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Terjadi kesalahan internal server saat mencatat pengeluaran.")
 
 # 2. UPDATE PENGELUARAN
 @router.put("/expenses/{expense_id}", response_model=schemas.GenericResponse)
@@ -58,9 +89,11 @@ def update_expense(
     try:
         expense.time = data.time
         expense.date = datetime.strptime(data.date, "%Y-%m-%d").date()
-        expense.plate = data.plate
-        expense.vehicle_type = data.vehicleType
-        expense.driver_name = data.driver
+        
+        # 🌟 FIX CTO: Update ID relasinya
+        expense.vehicle_id = data.vehicle_id
+        expense.driver_id = data.driver_id
+        
         expense.is_oncall = data.isOncall
         expense.bbm = data.bbm
         expense.tol = data.tol
@@ -76,7 +109,8 @@ def update_expense(
         return {"status": "success", "message": "Biaya operasional berhasil diupdate."}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"🚨 [UPDATE EXPENSE] DB Error untuk ID {expense_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Terjadi kesalahan internal server saat mengupdate pengeluaran.")
 
 # 3. GET SEMUA PENGELUARAN (Bisa di-filter berdasarkan tanggal)
 @router.get("/expenses", response_model=schemas.ExpenseListResponse)
@@ -102,28 +136,7 @@ def get_expenses(
         
     expenses = query.order_by(models.OperationalExpense.created_at.desc()).all()
     
-    # Mapping dari Python Snake_case ke CamelCase Frontend
-    results = []
-    for e in expenses:
-        results.append({
-            "id": e.id,
-            "time": e.time,
-            "date": str(e.date),
-            "plate": e.plate,
-            "vehicleType": e.vehicle_type,
-            "driver": e.driver_name,
-            "isOncall": e.is_oncall,
-            "bbm": e.bbm,
-            "tol": e.tol,
-            "parkir": e.parkir,
-            "parkirLiar": e.parkir_liar,
-            "kuliAngkut": e.kuli_angkut,
-            "lainLain": e.lain_lain,
-            "helperName": e.helper_name,
-            "notes": e.notes,
-            "total": e.total
-        })
-
+    results = [expense_to_dict(e) for e in expenses]
     return {"status": "success", "data": results}
 
 # 4. GET PENGELUARAN HARI INI
@@ -135,27 +148,7 @@ def get_today_expenses(
     today = date.today()
     expenses = db.query(models.OperationalExpense).filter(models.OperationalExpense.date == today).order_by(models.OperationalExpense.created_at.desc()).all()
     
-    results = []
-    for e in expenses:
-        results.append({
-            "id": e.id,
-            "time": e.time,
-            "date": str(e.date),
-            "plate": e.plate,
-            "vehicleType": e.vehicle_type,
-            "driver": e.driver_name,
-            "isOncall": e.is_oncall,
-            "bbm": e.bbm,
-            "tol": e.tol,
-            "parkir": e.parkir,
-            "parkirLiar": e.parkir_liar,
-            "kuliAngkut": e.kuli_angkut,
-            "lainLain": e.lain_lain,
-            "helperName": e.helper_name,
-            "notes": e.notes,
-            "total": e.total
-        })
-
+    results = [expense_to_dict(e) for e in expenses]
     return {"status": "success", "data": results}
 
 # 5. HAPUS PENGELUARAN

@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     # ==========================================
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440 # Otomatis diconvert ke integer sama Pydantic
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 
 
     # ==========================================
     # APPLICATION CONFIGURATION
@@ -49,6 +49,14 @@ class Settings(BaseSettings):
     EPOD_DIR: str = "uploads/epod"
     GEOMETRY_DIR: str = "route_geometries"
 
+    # ==========================================
+    # 🌟 COST & OPERATIONS (TAMBAHAN BUAT ANALYTICS)
+    # ==========================================
+    cost_fuel_per_liter: float = 12500.0
+    cost_avg_km_per_liter: float = 5.0
+    cost_driver_salary: float = 4500000.0
+    cost_overtime_rate: float = 25000.0
+
     # Mesin utama buat ngebaca file .env
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -58,3 +66,4 @@ settings = Settings()
 # Create directories if not exist
 os.makedirs(settings.EPOD_DIR, exist_ok=True)
 os.makedirs(settings.GEOMETRY_DIR, exist_ok=True)
+

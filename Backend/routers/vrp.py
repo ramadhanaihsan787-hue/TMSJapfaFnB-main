@@ -1,169 +1,226 @@
-# routers/vrp.py
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks # 🌟 FIX: Tambah BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import Optional
 import datetime
 import json
 import math
 import os
+import uuid # 🌟 FIX: Buat bikin ID Tiket (Job ID)
+import logging # 🌟 FIX: Buat nangkep error bocor
 
+from database import SessionLocal # 🌟 FIX: Background task butuh koneksi DB sendiri!
 import models
-import schemas # 🌟 SUNTIKAN PYDANTIC!
+import schemas
 from services import vrp_solver, map_service
 from utils.helpers import time_str_to_minutes, menit_ke_jam, classify_store
 from dependencies import get_db, get_settings, get_current_user, require_role
 from core.config import settings as env_settings
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["VRP & Route Planning"])
 
-@router.post("/routes/optimize", response_model=schemas.OptimizeResponse)
-def optimize_routes(
+# 🌟 TEMPAT PENYIMPANAN SEMENTARA HASIL VRP (IN-MEMORY CACHE)
+# Nanti kalau udah pro, ini dipindah ke Redis. Buat MVP, ini udah cukup banget!
+VRP_JOBS = {}
+
+# ==========================================
+# 1. BARISTA NYEDUH KOPI (FUNGSI BACKGROUND)
+# ==========================================
+def run_vrp_optimization_task(job_id: str, preview: bool):
+    """Heavy lifting OR-Tools jalan di sini, ga bikin HTTP Request nungguin"""
+    # Buka sesi DB baru karena sesi utama udah ditutup pas HTTP Response dibalikin
+    db = SessionLocal() 
+    try:
+        settings = get_settings()
+        TOMTOM_KEY   = env_settings.TOMTOM_API_KEY
+        DEPO_LAT     = settings.depo_lat
+        DEPO_LON     = settings.depo_lon
+        START_MINUTE = time_str_to_minutes(settings.vrp_start_time)
+        END_MINUTE   = time_str_to_minutes(settings.vrp_end_time)
+        BASE_DROP    = settings.vrp_base_drop_time_mins
+        VAR_DROP     = settings.vrp_var_drop_time_mins
+        CAP_BUFFER   = settings.vrp_capacity_buffer_percent / 100.0 
+
+        pending_orders = db.query(models.DeliveryOrder).filter(models.DeliveryOrder.status == models.DOStatus.do_verified).all()
+        if not pending_orders:
+            raise Exception("Tidak ada Delivery Order terverifikasi!")
+
+        vehicles = db.query(models.FleetVehicle).filter(models.FleetVehicle.status == "Available").all()
+        drivers = db.query(models.HRDriver).filter(models.HRDriver.status == True).all()
+        if not vehicles or not drivers:
+            raise Exception("Armada atau Driver tidak tersedia!")
+
+        total_berat = sum(int(o.weight_total) for o in pending_orders)
+        ideal_trucks = (total_berat // 2000) + 2
+        active_count = min(ideal_trucks, len(vehicles))
+        vehicle_capacities = [int(vehicles[i].capacity_kg * CAP_BUFFER) for i in range(active_count)]
+        
+        locations   = [{"lat": DEPO_LAT, "lon": DEPO_LON}]
+        demands     = [0]
+        is_mall     = [False]
+        time_windows = [(START_MINUTE, END_MINUTE)]
+        node_to_order = {}
+
+        for idx, order in enumerate(pending_orders):
+            locations.append({"lat": float(order.latitude), "lon": float(order.longitude)})
+            demands.append(int(order.weight_total))
+            is_mall.append(classify_store(order.customer_name))
+            tw_start = order.delivery_window_start or START_MINUTE
+            tw_end   = order.delivery_window_end   or END_MINUTE
+            time_windows.append((tw_start, tw_end))
+            node_to_order[idx + 1] = order
+
+        distance_matrix, time_matrix = None, None
+        if TOMTOM_KEY:
+            distance_matrix, time_matrix = map_service.build_tomtom_matrix(locations, TOMTOM_KEY)
+        if distance_matrix is None:  
+            distance_matrix, time_matrix = map_service.build_haversine_matrix(locations)
+
+        matrix_km = [[int(d / 1000) for d in row] for row in distance_matrix]
+
+        hasil_vrp = vrp_solver.solve_vrp(
+            matrix_km, time_matrix, demands, len(vehicle_capacities), vehicle_capacities,
+            is_mall, time_windows, BASE_DROP, VAR_DROP
+        )
+
+        if not hasil_vrp:
+            raise Exception("VRP Solver gagal menghitung rute optimal!")
+
+        today = datetime.datetime.now().date()
+        if not preview:
+            rute_lama = db.query(models.TMSRoutePlan).filter(models.TMSRoutePlan.planning_date == today).all()
+            for rute in rute_lama:
+                db.query(models.TMSRouteLine).filter(models.TMSRouteLine.route_id == rute.route_id).delete()
+            db.query(models.TMSRoutePlan).filter(models.TMSRoutePlan.planning_date == today).delete()
+
+        formatted_routes, assigned_nodes = [], set()
+        active_truck_counter = 0
+
+        for truck_idx, route_indices in enumerate(hasil_vrp['routes']):
+            if len(route_indices) <= 2: continue
+
+            vehicle = vehicles[active_truck_counter]
+            driver  = drivers[active_truck_counter] if active_truck_counter < len(drivers) else drivers[0]
+            route_id = f"RP-{datetime.datetime.now().strftime('%Y%m%d')}-T{active_truck_counter + 1}"
+            active_truck_counter += 1
+
+            total_dist_m = sum(distance_matrix[route_indices[i]][route_indices[i + 1]] for i in range(len(route_indices) - 1))
+            total_km = round(total_dist_m / 1000.0, 1)
+
+            new_plan = models.TMSRoutePlan(
+                route_id=route_id, planning_date=today, vehicle_id=vehicle.vehicle_id,
+                driver_id=driver.driver_id, total_weight=0, total_distance_km=total_km
+            )
+            if not preview: db.add(new_plan)
+
+            route_geometry = map_service.get_road_geometry(route_indices, locations, TOMTOM_KEY) if TOMTOM_KEY else []
+            manifest, total_muatan, current_time, prev_node = [], 0, START_MINUTE, 0
+
+            for step, node_idx in enumerate(route_indices):
+                assigned_nodes.add(node_idx)
+                seg_km = round((distance_matrix[prev_node][node_idx] if step != 0 else 0) / 1000.0, 1)
+
+                if node_idx == 0:
+                    if step != 0: current_time += time_matrix[prev_node][node_idx]
+                    prev_node = node_idx
+                    manifest.append({
+                        "urutan": step, "lokasi": "📍 GUDANG JAPFA", 
+                        "jam": str(menit_ke_jam(current_time)),
+                        "keterangan": "Start" if step == 0 else "Finish", "lat": DEPO_LAT, "lon": DEPO_LON, "distance_from_prev_km": seg_km
+                    })
+                    continue
+
+                order = node_to_order[node_idx]
+                total_muatan += demands[node_idx]
+                current_time += time_matrix[prev_node][node_idx]
+                if current_time < time_windows[node_idx][0]: current_time = time_windows[node_idx][0]
+
+                service_time = 60 + (demands[node_idx] / 10.0) if is_mall[node_idx] else BASE_DROP + (demands[node_idx] * VAR_DROP / 10.0)
+                est_arrival = menit_ke_jam(current_time)
+                
+                if not preview:
+                    db.add(models.TMSRouteLine(route_id=route_id, order_id=order.order_id, sequence=step, est_arrival=est_arrival, distance_from_prev_km=seg_km))
+                    order.status = models.DOStatus.do_assigned_to_route
+
+                manifest.append({
+                    "urutan": step, "nomor_do": order.order_id, "nama_toko": order.customer_name,
+                    "turun_barang_kg": round(demands[node_idx], 2), "jam_tiba": str(est_arrival),
+                    "lat": float(order.latitude), "lon": float(order.longitude), "distance_from_prev_km": seg_km
+                })
+                current_time += service_time
+                prev_node = node_idx
+
+            if not preview: new_plan.total_weight = total_muatan
+            if not preview and route_geometry:
+                os.makedirs("route_geometries", exist_ok=True)
+                with open(f"route_geometries/{route_id}.json", "w") as f: json.dump(route_geometry, f)
+
+            formatted_routes.append({
+                "route_id": route_id, "armada": vehicle.license_plate, "driver": driver.name,
+                "total_muatan_kg": total_muatan, "total_jarak_km": total_km,
+                "detail_perjalanan": manifest, "garis_aspal": route_geometry
+            })
+
+        dropped = [{"nama_toko": node_to_order[n].customer_name, "berat_kg": node_to_order[n].weight_total, "lat": float(node_to_order[n].latitude), "lon": float(node_to_order[n].longitude), "alasan": "Kapasitas Penuh"} for n in range(1, len(locations)) if n not in assigned_nodes]
+
+        if preview: db.rollback()
+        else: db.commit()
+
+        # 🌟 SIMPAN HASIL KE MEJA PENGAMBILAN (CACHE)
+        VRP_JOBS[job_id] = {
+            "status": "completed",
+            "data": {
+                "message": f"[PREVIEW] {len(formatted_routes)} rute." if preview else ("Sukses!" if not dropped else f"⚠️ {len(dropped)} toko di-drop"),
+                "total_trucks": len(formatted_routes), "total_orders": len(pending_orders), "dropped_count": len(dropped),
+                "jadwal_truk_internal": formatted_routes, "dropped_nodes_peta": dropped
+            }
+        }
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"🚨 [VRP BACKGROUND TASK ERROR]: {str(e)}", exc_info=True)
+        # 🌟 SIMPAN ERROR KE MEJA PENGAMBILAN
+        VRP_JOBS[job_id] = {"status": "failed", "message": str(e)}
+    finally:
+        db.close() # Wajib tutup sesi DB biar ga memory leak!
+
+
+# ==========================================
+# 2. KASIR (MINTA TIKET ANTRIAN)
+# ==========================================
+@router.post("/routes/optimize/start")
+def start_optimize_routes(
+    background_tasks: BackgroundTasks,
     preview: bool = False,
-    db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))
 ):
-    settings = get_settings()
-    TOMTOM_KEY   = env_settings.TOMTOM_API_KEY
-    DEPO_LAT     = settings.depo_lat
-    DEPO_LON     = settings.depo_lon
-    START_MINUTE = time_str_to_minutes(settings.vrp_start_time)
-    END_MINUTE   = time_str_to_minutes(settings.vrp_end_time)
-    BASE_DROP    = settings.vrp_base_drop_time_mins
-    VAR_DROP     = settings.vrp_var_drop_time_mins
-    CAP_BUFFER   = settings.vrp_capacity_buffer_percent / 100.0 
-
-    pending_orders = db.query(models.DeliveryOrder).filter(models.DeliveryOrder.status == models.DOStatus.do_verified).all()
-    if not pending_orders:
-        raise HTTPException(status_code=400, detail="Tidak ada Delivery Order terverifikasi!")
-
-    vehicles = db.query(models.FleetVehicle).filter(models.FleetVehicle.status == "Available").all()
-    drivers = db.query(models.HRDriver).filter(models.HRDriver.status == True).all()
-    if not vehicles or not drivers:
-        raise HTTPException(status_code=500, detail="Armada atau Driver tidak tersedia!")
-
-    total_berat = sum(int(o.weight_total) for o in pending_orders)
-    ideal_trucks = (total_berat // 2000) + 2
-    active_count = min(ideal_trucks, len(vehicles))
-
-    vehicle_capacities = [int(vehicles[i].capacity_kg * CAP_BUFFER) for i in range(active_count)]
+    """Endpoint yang ditekan frontend pertama kali. Balikannya instan (< 1 detik)."""
+    job_id = str(uuid.uuid4())
     
-    locations   = [{"lat": DEPO_LAT, "lon": DEPO_LON}]
-    demands     = [0]
-    is_mall     = [False]
-    time_windows = [(START_MINUTE, END_MINUTE)]
-    node_to_order = {}
-
-    for idx, order in enumerate(pending_orders):
-        locations.append({"lat": float(order.latitude), "lon": float(order.longitude)})
-        demands.append(int(order.weight_total))
-        is_mall.append(classify_store(order.customer_name))
-        tw_start = order.delivery_window_start or START_MINUTE
-        tw_end   = order.delivery_window_end   or END_MINUTE
-        time_windows.append((tw_start, tw_end))
-        node_to_order[idx + 1] = order
-
-    distance_matrix, time_matrix = None, None
-    if TOMTOM_KEY:
-        distance_matrix, time_matrix = map_service.build_tomtom_matrix(locations, TOMTOM_KEY)
-    if distance_matrix is None:  
-        distance_matrix, time_matrix = map_service.build_haversine_matrix(locations)
-
-    matrix_km = [[int(d / 1000) for d in row] for row in distance_matrix]
-
-    hasil_vrp = vrp_solver.solve_vrp(
-        matrix_km, time_matrix, demands, len(vehicle_capacities), vehicle_capacities,
-        is_mall, time_windows, BASE_DROP, VAR_DROP
-    )
-
-    if not hasil_vrp:
-        raise HTTPException(status_code=400, detail="VRP Solver gagal!")
-
-    today = datetime.datetime.now().date()
-    if not preview:
-        rute_lama = db.query(models.TMSRoutePlan).filter(models.TMSRoutePlan.planning_date == today).all()
-        for rute in rute_lama:
-            db.query(models.TMSRouteLine).filter(models.TMSRouteLine.route_id == rute.route_id).delete()
-        db.query(models.TMSRoutePlan).filter(models.TMSRoutePlan.planning_date == today).delete()
-
-    formatted_routes, assigned_nodes = [], set()
-    active_truck_counter = 0
-
-    for truck_idx, route_indices in enumerate(hasil_vrp['routes']):
-        if len(route_indices) <= 2: continue
-
-        vehicle = vehicles[active_truck_counter]
-        driver  = drivers[active_truck_counter] if active_truck_counter < len(drivers) else drivers[0]
-        route_id = f"RP-{datetime.datetime.now().strftime('%Y%m%d')}-T{active_truck_counter + 1}"
-        active_truck_counter += 1
-
-        total_dist_m = sum(distance_matrix[route_indices[i]][route_indices[i + 1]] for i in range(len(route_indices) - 1))
-        total_km = round(total_dist_m / 1000.0, 1)
-
-        new_plan = models.TMSRoutePlan(
-            route_id=route_id, planning_date=today, vehicle_id=vehicle.vehicle_id,
-            driver_id=driver.driver_id, total_weight=0, total_distance_km=total_km
-        )
-        if not preview: db.add(new_plan)
-
-        route_geometry = map_service.get_road_geometry(route_indices, locations, TOMTOM_KEY) if TOMTOM_KEY else []
-
-        manifest, total_muatan, current_time, prev_node = [], 0, START_MINUTE, 0
-
-        for step, node_idx in enumerate(route_indices):
-            assigned_nodes.add(node_idx)
-            seg_km = round((distance_matrix[prev_node][node_idx] if step != 0 else 0) / 1000.0, 1)
-
-            if node_idx == 0:
-                if step != 0: current_time += time_matrix[prev_node][node_idx]
-                prev_node = node_idx
-                manifest.append({
-                    "urutan": step, "lokasi": "📍 GUDANG JAPFA", 
-                    "jam": str(menit_ke_jam(current_time)),
-                    "keterangan": "Start" if step == 0 else "Finish", "lat": DEPO_LAT, "lon": DEPO_LON, "distance_from_prev_km": seg_km
-                })
-                continue
-
-            order = node_to_order[node_idx]
-            total_muatan += demands[node_idx]
-            current_time += time_matrix[prev_node][node_idx]
-            if current_time < time_windows[node_idx][0]: current_time = time_windows[node_idx][0]
-
-            service_time = 60 + (demands[node_idx] / 10.0) if is_mall[node_idx] else BASE_DROP + (demands[node_idx] * VAR_DROP / 10.0)
-            est_arrival = menit_ke_jam(current_time)
-            
-            if not preview:
-                db.add(models.TMSRouteLine(route_id=route_id, order_id=order.order_id, sequence=step, est_arrival=est_arrival, distance_from_prev_km=seg_km))
-                order.status = models.DOStatus.do_assigned_to_route
-
-            manifest.append({
-                "urutan": step, "nomor_do": order.order_id, "nama_toko": order.customer_name,
-                "turun_barang_kg": round(demands[node_idx], 2), "jam_tiba": str(est_arrival),
-                "lat": float(order.latitude), "lon": float(order.longitude), "distance_from_prev_km": seg_km
-            })
-            current_time += service_time
-            prev_node = node_idx
-
-        if not preview: new_plan.total_weight = total_muatan
-        if not preview and route_geometry:
-            os.makedirs("route_geometries", exist_ok=True)
-            with open(f"route_geometries/{route_id}.json", "w") as f: json.dump(route_geometry, f)
-
-        formatted_routes.append({
-            "route_id": route_id, "armada": vehicle.license_plate, "driver": driver.name,
-            "total_muatan_kg": total_muatan, "total_jarak_km": total_km,
-            "detail_perjalanan": manifest, "garis_aspal": route_geometry
-        })
-
-    dropped = [{"nama_toko": node_to_order[n].customer_name, "berat_kg": node_to_order[n].weight_total, "lat": float(node_to_order[n].latitude), "lon": float(node_to_order[n].longitude), "alasan": "Kapasitas Penuh"} for n in range(1, len(locations)) if n not in assigned_nodes]
-
-    if preview: db.rollback()
-    else: db.commit()
-
-    return {
-        "message": f"[PREVIEW] {len(formatted_routes)} rute." if preview else ("Sukses!" if not dropped else f"⚠️ {len(dropped)} toko di-drop"),
-        "total_trucks": len(formatted_routes), "total_orders": len(pending_orders), "dropped_count": len(dropped),
-        "jadwal_truk_internal": formatted_routes, "dropped_nodes_peta": dropped
+    # Bikin tiket antrian
+    VRP_JOBS[job_id] = {
+        "status": "processing",
+        "message": "AI Engine sedang menghitung rute optimal (Estimasi: 15-40 detik)...",
+        "data": None
     }
+    
+    # Suruh barista nyeduh di belakang layar
+    background_tasks.add_task(run_vrp_optimization_task, job_id, preview)
+    
+    return {"status": "success", "job_id": job_id}
+
+
+# ==========================================
+# 3. CUSTOMER NGECEK PESANAN (POLLING)
+# ==========================================
+@router.get("/routes/optimize/status/{job_id}")
+def check_optimization_status(job_id: str):
+    """Frontend akan nembak ini setiap 3 detik buat ngecek apakah AI udah kelar."""
+    job_info = VRP_JOBS.get(job_id)
+    if not job_info:
+        raise HTTPException(status_code=404, detail="Job ID tidak ditemukan atau sudah kadaluarsa.")
+    
+    return job_info
 
 @router.get("/routes", response_model=schemas.GetRoutesResponse)
 def get_routes(
@@ -245,7 +302,9 @@ def confirm_routes(payload: dict, db: Session = Depends(get_db), current_user: m
         return {"message": f"Sukses! {len(jadwal)} rute dikonfirmasi.", "status": "success"}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        # 🌟 FIX CTO: Error asli dicatet rahasia, error frontend dibikin aman
+        logger.error(f"🚨 [CONFIRM ROUTES ERROR]: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Terjadi kesalahan internal saat mengonfirmasi rute.")
 
 @router.get("/routes/{route_id}/loadplan", response_model=schemas.LoadPlanResponse)
 def get_load_plan(route_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):

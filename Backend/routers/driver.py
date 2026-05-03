@@ -99,9 +99,13 @@ def update_stop_status(
     return {"status": "success", "message": f"Status rute {line_id} berhasil diupdate."}
 
 # ==========================================
-# 3. SUBMIT E-POD (UPDATE: BISA NANGKEP DATA RETUR!)
-# 🌟 SUNTIKAN KEEMPAT: response_model=schemas.EpodResponse
+# 3. SUBMIT E-POD (SECURE UPLOAD + VALIDATION)
 # ==========================================
+# Konfigurasi Satpam Upload
+ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"]
+MAX_FILE_SIZE_MB = 5
+MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+
 @router.post("/stops/{line_id}/epod", response_model=schemas.EpodResponse)
 async def submit_epod(
     line_id: int,
@@ -112,56 +116,80 @@ async def submit_epod(
     return_reason: str = Form(""),
     db: Session = Depends(get_db)
 ):
-    line = db.query(models.TMSRouteLine).filter(models.TMSRouteLine.line_id == line_id).first()
-    if not line:
-        raise HTTPException(status_code=404, detail="Data rute tidak ditemukan!")
+    # 🛡️ SATPAM 1: Cek MIME Type (Apakah beneran gambar?)
+    if file.content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(status_code=400, detail="Format file ditolak! Hanya boleh upload gambar (JPG, PNG, WEBP).")
 
-    total_order_kg = line.order.weight_total or 0.0
-    is_return = has_return.lower() == 'true'
-
-    qty_delivered = total_order_kg
-    qty_returned = 0.0
-    qty_damaged = 0.0
-    final_status = models.DOStatus.delivered_success
-    driver_note = ""
-
-    if is_return and return_qty > 0:
-        qty_delivered = max(0.0, total_order_kg - return_qty)
-        qty_returned = return_qty
-        final_status = models.DOStatus.delivered_partial
-        
-        if return_product:
-            driver_note = f"Produk Retur: {return_product}"
-
-        if return_reason in ["Barang Rusak", "Packaging Bocor", "Kadaluarsa"]:
-            qty_damaged = return_qty
-
-    file_ext = file.filename.split(".")[-1]
-    filename = f"POD_{line.order_id}_{uuid.uuid4().hex}.{file_ext}"
-    file_path = os.path.join(UPLOAD_DIR, filename)
-
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    new_pod = models.TMSEpodHistory(
-        line_id=line_id,
-        status=final_status,
-        timestamp=datetime.now(),
-        photo_url=f"/static/uploads/epod/{filename}",
-        gps_location_lat=line.order.latitude,
-        gps_location_lon=line.order.longitude,
-        qty_delivered=qty_delivered,
-        qty_return=qty_returned,
-        qty_damaged=qty_damaged,
-        return_reason=return_reason if is_return else None,
-        driver_notes=driver_note if is_return else None
-    )
-    db.add(new_pod)
-    line.order.status = final_status
-    db.commit()
+    # 🛡️ SATPAM 2: Cek Ukuran File
+    file_content = await file.read() # Baca isi file ke memory sementara
+    if len(file_content) > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(status_code=400, detail=f"Ukuran foto terlalu besar! Maksimal {MAX_FILE_SIZE_MB}MB.")
     
-    return {
-        "status": "success", 
-        "url": new_pod.photo_url,
-        "message": "POD berhasil diunggah dengan data retur!" if is_return else "POD berhasil diunggah!"
-    }
+    try:
+        line = db.query(models.TMSRouteLine).filter(models.TMSRouteLine.line_id == line_id).first()
+        if not line:
+            raise HTTPException(status_code=404, detail="Data rute tidak ditemukan!")
+
+        total_order_kg = line.order.weight_total or 0.0
+        is_return = has_return.lower() == 'true'
+
+        qty_delivered = total_order_kg
+        qty_returned = 0.0
+        qty_damaged = 0.0
+        final_status = models.DOStatus.delivered_success
+        driver_note = ""
+
+        if is_return and return_qty > 0:
+            qty_delivered = max(0.0, total_order_kg - return_qty)
+            qty_returned = return_qty
+            final_status = models.DOStatus.delivered_partial
+            
+            if return_product:
+                driver_note = f"Produk Retur: {return_product}"
+
+            if return_reason in ["Barang Rusak", "Packaging Bocor", "Kadaluarsa"]:
+                qty_damaged = return_qty
+
+        # 🛡️ SATPAM 1 (Lanjutan): Double Check Ekstensi
+        file_ext = file.filename.split(".")[-1].lower()
+        if file_ext not in ["jpg", "jpeg", "png", "webp"]:
+             raise HTTPException(status_code=400, detail="Ekstensi file mencurigakan!")
+
+        filename = f"POD_{line.order_id}_{uuid.uuid4().hex}.{file_ext}"
+        file_path = os.path.join(UPLOAD_DIR, filename)
+
+        # 💾 Tulis byte yang udah dibaca tadi ke dalam disk
+        with open(file_path, "wb") as buffer:
+            buffer.write(file_content)
+
+        new_pod = models.TMSEpodHistory(
+            line_id=line_id,
+            status=final_status,
+            timestamp=datetime.now(),
+            photo_url=f"/static/uploads/epod/{filename}",
+            gps_location_lat=line.order.latitude,
+            gps_location_lon=line.order.longitude,
+            qty_delivered=qty_delivered,
+            qty_return=qty_returned,
+            qty_damaged=qty_damaged,
+            return_reason=return_reason if is_return else None,
+            driver_notes=driver_note if is_return else None
+        )
+        db.add(new_pod)
+        line.order.status = final_status
+        db.commit()
+        
+        return {
+            "status": "success", 
+            "url": new_pod.photo_url,
+            "message": "POD berhasil diunggah dengan data retur!" if is_return else "POD berhasil diunggah!"
+        }
+
+    except HTTPException:
+        # Biarkan pesan error spesifik (400/404) lolos ke client
+        raise
+    except Exception as e:
+        # 🛡️ SATPAM 3: Anti-bocor exception!
+        db.rollback()
+        logger.error(f"🚨 [UPLOAD EPOD] Error di line_id {line_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Terjadi kesalahan internal saat menyimpan POD. Silakan hubungi admin.")

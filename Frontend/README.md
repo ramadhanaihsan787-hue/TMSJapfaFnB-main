@@ -1,53 +1,527 @@
-# TMS Japfa FnB - Frontend
+# Frontend - Dokumentasi Lengkap
 
-A modern, role-based Transport Management System (TMS) frontend built with React, TypeScript, Vite, and Tailwind CSS. Provides comprehensive logistics management for drivers, administrators, and managers with real-time tracking, route optimization, and proof-of-delivery (POD) features.
+## 📋 Gambaran Umum
 
-## 📋 Table of Contents
+Frontend TMS Japfa adalah aplikasi React modern dengan arsitektur **Hybrid Feature-Based** yang di-design untuk skalabilitas dan maintainability. Aplikasi ini menyediakan dashboard dan tools manajemen logistics untuk 4 role berbeda:
+- **Driver** - Tracking pengiriman real-time
+- **Logistik Manager** - Perencanaan rute & fleet management
+- **POD Admin** - Verifikasi proof-of-delivery
+- **Manager Logistik Pusat** - Analytics & reporting
 
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-- [Development](#development)
-- [Build & Deployment](#build--deployment)
-- [Environment Configuration](#environment-configuration)
-- [Architecture](#architecture)
-- [Available Routes](#available-routes)
-- [API Integration](#api-integration)
-- [Contributing](#contributing)
+### Stack Teknologi
+- **React 19** - UI framework dengan Hooks
+- **TypeScript** - Type safety
+- **Vite 5** - Fast build tool with HMR
+- **Tailwind CSS 4** - Utility-first styling
+- **React Router 7** - Client-side routing
+- **Zustand** - State management (load planning)
+- **Three.js + React Three Fiber** - 3D visualization
+- **Leaflet + React Leaflet** - Interactive maps
+- **Axios** - HTTP client with JWT injection
+- **Framer Motion** - Animations
+- **Lucide React** - Icons
 
 ---
 
-## ✨ Features
+## 🏗️ Arsitektur Hybrid Feature-Based
 
-### Core Features
-- 🔐 **Role-Based Access Control**: 4 user roles with specific permissions (Admin Distribusi, Manager Logistik, Admin POD, Driver)
-- 📱 **Responsive Design**: Mobile-first approach with Tailwind CSS
-- 🗺️ **Real-time Map Integration**: Leaflet for route visualization and tracking
-- 📊 **Analytics Dashboard**: KPI monitoring and performance metrics
-- 🚚 **Route Planning & Optimization**: Interactive route optimization with visualization
-- 🎥 **POD (Proof of Delivery)**: Photo capture and verification system
-- 📦 **3D Load Planner**: Three.js-based truck cargo optimization using Zustand state management
-- 🎨 **Dark/Light Theme**: Theme toggle with persistent preferences
-- 🔄 **Real-time Updates**: WebSocket support for live status updates
-- ♿ **Accessibility**: WCAG compliance considerations
+```
+Frontend/src/
+├── features/              # 12 Feature modules (independent)
+│   ├── auth/             # Login, register, security
+│   ├── dashboard/        # Role-based dashboards
+│   ├── routes/           # Route planning & optimization
+│   ├── analytics/        # KPI & reporting
+│   ├── drivers/          # Driver management & performance
+│   ├── fleet/            # Vehicle management
+│   ├── customers/        # Customer data & orders
+│   ├── pod/              # Proof of delivery capture & verification
+│   ├── settings/         # User & system settings
+│   ├── team/             # Team roles & permissions
+│   ├── manager/          # Manager dashboard
+│   └── loadPlanner/      # Load planning & optimization
+│
+├── shared/               # Reusable layer
+│   ├── components/       # Shared UI components
+│   │   ├── layouts/      # Layout wrappers (LogisticsLayout, RoleGuard)
+│   │   ├── 3d/truck/     # 3D truck visualization
+│   │   └── ui/           # UI utilities (progress bars, inspectors)
+│   ├── hooks/            # Custom React hooks (useApi, useAuth, useSidebar)
+│   ├── types/            # TypeScript types & interfaces
+│   ├── utils/            # Helper functions (formatters, validators)
+│   ├── services/         # API services
+│   └── styles/           # Global styles & Tailwind
+│
+├── context/              # Global contexts (Auth, Sidebar)
+├── store/                # Zustand stores (loadPlanner state)
+└── main.tsx              # App entry point
+```
 
-### Admin Features
-- Fleet management and vehicle tracking
-- Driver performance analytics
-- Cost analysis and billing
-- User role management
-- System settings and configuration
+### Struktur Setiap Feature
+```
+features/[feature]/
+├── pages/                # Page components (dashboard views)
+├── components/           # Feature-specific components
+├── hooks/                # Feature-specific hooks (e.g., useDashboardData)
+├── types/                # Feature-specific types/interfaces
+├── services/             # API calls for feature
+├── styles/               # Feature-specific styles (optional)
+└── index.ts              # Barrel export untuk clean imports
+```
 
-### Driver Features
-- Daily route overview
-- Stop-by-stop navigation
-- Delivery status updates
-- POD capture and submission
-- Trip summary and completion
+---
 
-### POD Admin Features
-- Photo verification workflow
+## 📚 12 Feature Modules
+
+### 1️⃣ **AUTH** - Autentikasi & Otorisasi
+**Location:** `features/auth/`
+
+**Fitur:**
+- Login dengan username/password
+- JWT token management
+- Role-based access control (RBAC)
+- Auto-logout on token expiration
+- Terms of service & privacy policy pages
+
+**Pages:**
+- `LoginPage.tsx` - Login form
+- `TermsOfService.tsx` - ToS display
+- `PrivacyPolicy.tsx` - Privacy policy display
+
+**Hooks:**
+- `useLogin.ts` - Login logic & validation
+
+**Services:**
+- `authService.ts` - API calls (login, logout, refresh token)
+
+---
+
+### 2️⃣ **DASHBOARD** - Role-Specific Dashboards
+**Location:** `features/dashboard/`
+
+**Fitur:**
+- **Driver Dashboard** - Trip summary, current location, delivery status
+- **Logistik Dashboard** - Fleet overview, active orders, system alerts
+- **POD Dashboard** - Verification stats, pending items queue
+- **Manager Dashboard** - KPI summary, performance trends
+
+**Pages:**
+- `DriverDashboard.tsx` - Driver view (current route, stops)
+- `DriverTripSummary.tsx` - Trip completion stats
+- `LogistikDashboard.tsx` - Logistics operations overview
+- `PODDashboard.tsx` - POD verification queue
+
+**Components:**
+- `LiveTruckTracker` - Real-time truck location on map
+- `KPICard` - Metric display cards
+- `AlertBanner` - System alerts & notifications
+- `DeliveryStatus` - Order progress visualization
+
+**Store:**
+- `loadStore.ts` - Zustand persisted state for load planning
+
+---
+
+### 3️⃣ **ROUTES** - Route Planning & Optimization
+**Location:** `features/routes/`
+
+**Fitur:**
+- Route planning interface
+- Drag-and-drop order assignment
+- 3D truck visualization (Three.js)
+- Route optimization using backend VRP solver
+- ETA & distance calculation
+- Multiple route variations
+
+**Pages:**
+- `RoutePlanningPage.tsx` - Main planning interface
+- `DriverRouteList.tsx` - Available routes for driver
+- `DriverDeliveryDetail.tsx` - Stop-by-stop details
+
+**Components:**
+- `Truck3DVisualization` - 3D truck model with cargo
+- `RouteMap` - Leaflet map with polylines & stops
+- `OrderDragDropZone` - Drag-drop order assignment
+- `RouteOptimizationPanel` - VRP parameters & solver
+- `GlowPolyline` - Animated route polyline
+
+**Types:**
+- `RouteProduct` - Order item structure
+- `RouteDetail` - Route metadata
+- `Truck3DProps` - 3D visualization props
+
+---
+
+### 4️⃣ **ANALYTICS** - KPI & Business Intelligence
+**Location:** `features/analytics/`
+
+**Fitur:**
+- KPI tracking (delivery rate, on-time %, cost/delivery)
+- Fleet utilization analysis
+- Driver performance ratings
+- Cost breakdown & trends
+- Time-series trends & forecasts
+
+**Pages:**
+- `AnalyticsPage.tsx` - Main analytics dashboard
+
+**Charts:**
+- Delivery volume trends
+- Fleet utilization heatmap
+- Driver performance rankings
+- Cost analysis pie charts
+
+**Types:**
+- `KPISummary` - Summary metrics
+- `FleetUtilization` - Vehicle usage stats
+- `DeliveryVolume` - Order volume trends
+
+---
+
+### 5️⃣ **DRIVERS** - Driver Management & Performance
+**Location:** `features/drivers/`
+
+**Fitur:**
+- Driver directory with contact info
+- Performance metrics (ratings, safety, efficiency)
+- Trip history & statistics
+- Document management
+- Incentive tracking & bonuses
+
+**Pages:**
+- `DriverPerformancePage.tsx` - Performance dashboard
+
+**Types:**
+- `DriverData` - Driver profile structure
+- `DriverMetrics` - Performance indicators
+
+---
+
+### 6️⃣ **FLEET** - Vehicle & Asset Management
+**Location:** `features/fleet/`
+
+**Fitur:**
+- Vehicle registry & specifications
+- Capacity & dimension tracking
+- Maintenance schedule tracking
+- Vehicle status (available, in-use, maintenance, retired)
+- Cost tracking (fuel, maintenance, insurance)
+- GPS tracking integration
+
+**Pages:**
+- `FleetManagementPage.tsx` - Vehicle management dashboard
+
+---
+
+### 7️⃣ **CUSTOMERS** - Customer & Order Management
+**Location:** `features/customers/`
+
+**Fitur:**
+- Customer directory
+- Contact information
+- Order history
+- Delivery preferences
+- Credit limit tracking
+- SLA compliance
+
+**Pages:**
+- `CustomerDataPage.tsx` - Customer data dashboard
+
+---
+
+### 8️⃣ **POD** - Proof of Delivery System
+**Location:** `features/pod/`
+
+**Fitur:**
+- Photo capture for deliveries (mobile camera)
+- Digital signature capture (canvas)
+- Verification workflow (pending → verified/rejected)
+- Rejection handling with notes
+- Manual verification by admin
+
+**Pages:**
+- `PODCapturePage.tsx` - Driver POD capture
+- `VerificationsPage.tsx` - Admin verification queue
+- `MonitoringPage.tsx` - Real-time POD monitoring
+- `HistoryPage.tsx` - Historical POD records
+- `PODSettingsPage.tsx` - POD configuration
+
+**Components:**
+- `PODCaptureForm` - Photo + signature input form
+- `VerificationQueue` - Admin review interface
+- `PODHistory` - Historical records display
+
+---
+
+### 9️⃣ **SETTINGS** - Configuration & Preferences
+**Location:** `features/settings/`
+
+**Fitur:**
+- User preferences (theme, language)
+- Cost configuration (per-km rate, per-item fee)
+- Notification settings
+- System configuration
+
+**Pages:**
+- `SettingsPage.tsx` - User settings
+- `CostConfigurationPage.tsx` - Cost parameters
+
+---
+
+### 🔟 **TEAM** - Team & Roles Management
+**Location:** `features/team/`
+
+**Fitur:**
+- Team member directory
+- Role assignment
+- Permission management
+- Department organization
+- Access control
+
+**Pages:**
+- `TeamRolesPage.tsx` - Team management dashboard
+
+---
+
+### 1️⃣1️⃣ **MANAGER** - Central Operations Dashboard
+**Location:** `features/manager/`
+
+**Fitur:**
+- Operations overview
+- Alert dashboard (high-priority items)
+- Performance metrics summary
+- Report generation & export
+- Operational decisions
+
+**Pages:**
+- `ManagerDashboard.tsx` - Central dashboard
+
+---
+
+### 1️⃣2️⃣ **LOAD PLANNER** - Advanced Load Planning
+**Location:** `features/loadPlanner/`
+
+**Fitur:**
+- Vehicle capacity optimization
+- Order batching & grouping
+- Route grouping & consolidation
+- Cost estimation
+- Route export & printing
+
+**Pages:**
+- `LoadPlannerPage.tsx` - Load planning interface
+
+**Store:**
+- Custom Zustand store with localStorage persistence
+- State: orders, vehicles, planned routes, costs
+
+---
+
+## 🎨 Shared Layer Components
+
+### Layouts
+- **LogisticsLayout** - Main app wrapper with header & sidebar
+- **RoleGuard** - Route protection based on user role
+
+### Base Components
+- **Header** - Navigation bar with user menu & logout
+- **Sidebar** - Navigation with role-specific menu items
+- **ThemeToggle** - Dark/light mode switcher
+- **ErrorBoundary** - Error boundary wrapper
+
+### 3D Components
+- **TruckModel** - Mesh model of truck (Three.js)
+- **TruckScene** - Three.js scene & camera setup
+- **TruckSlot** - Individual cargo slot representation
+- **GhostBox** - Drag preview for cargo placement
+
+### UI Components
+- **CapacityProgressBar** - Cargo capacity visualization
+- **SidebarInspector** - Details panel
+
+---
+
+## 🔗 Shared Utilities & Hooks
+
+### Hooks (`shared/hooks/`)
+- **useApi** - Custom hook untuk API calls dengan JWT auto-injection
+- **useAuth** - Access to auth context (user, token, login, logout)
+- **useSidebar** - Sidebar state (isOpen, toggle, isMobile)
+- **useIsAuthenticated** - Check auth status
+- **useUserRole** - Get current user role
+- **useHasRole** - Check if user has specific role
+
+### Utilities (`shared/utils/`)
+
+#### Formatters (`formatters.ts`)
+- `formatDate()` - Indonesian date formatting
+- `formatTime()` - Time formatting (HH:mm:ss)
+- `formatDateTime()` - Combined date & time
+- `formatCurrency()` - IDR currency formatting
+- `formatDistance()` - Distance (km/m)
+- `formatWeight()` - Weight (kg/g)
+- `formatVolume()` - Volume (m³/L)
+- `formatPhoneNumber()` - Indonesian phone formatting
+- `formatOrderStatus()` - Status badge with color
+- `formatRouteStatus()` - Route status formatting
+- `truncateText()` - Text truncation with ellipsis
+
+#### Validators (`validators.ts`)
+- `validateEmail()` - Email validation
+- `validatePhoneNumber()` - Indonesian phone validation
+- `validatePassword()` - Password strength checking
+- `validateCoordinates()` - GPS coordinate validation
+- `validateTimeWindow()` - Time range validation
+- `validateDateRange()` - Date range validation
+- `validateWeight()` - Weight range validation
+- `validateLicensePlate()` - Vehicle plate validation
+- `validateFileSize()` - File upload size validation
+
+#### Helpers (`helpers.ts`)
+- `calculateHaversineDistance()` - GPS distance calculation
+- `calculateTotalDistance()` - Multi-point distance
+- `minutesToTime()` - Minute to HH:mm conversion
+- `timeToMinutes()` - Time string to minutes
+- `groupBy()` - Array grouping utility
+- `chunk()` - Array chunking
+- `unique()` - Array deduplication
+- `sortBy()` - Array sorting utility
+- `capitalize()`, `toCamelCase()`, `toKebabCase()` - String formatting
+- `slugify()` - URL-safe string conversion
+- `delay()` - Promise delay utility
+
+### Types (`shared/types/`)
+- **common.ts** - `UserRole`, `ApiResponse<T>`, `Coordinates`, `GeoPoint`
+- **api.ts** - API configuration types
+- **index.ts** - Barrel export
+
+---
+
+## 🚀 Development Setup
+
+### Prerequisites
+```bash
+Node.js >= 20.x
+npm or yarn
+```
+
+### Installation
+```bash
+cd Frontend
+npm install
+```
+
+### Environment Variables
+Create `.env` file:
+```env
+VITE_API_BASE_URL=http://localhost:8000
+VITE_APP_NAME=TMS Japfa
+```
+
+### Development Server
+```bash
+npm run dev
+# Runs on http://localhost:5173
+```
+
+### Build & Preview
+```bash
+npm run build        # Production build
+npm run preview      # Preview built app
+```
+
+### Code Quality
+```bash
+npm run lint         # ESLint check
+npm run test         # Vitest
+npm run test:watch   # Watch mode
+```
+
+---
+
+## 🔐 Authentication & Authorization
+
+**Roles:**
+- `admin_distribusi` - Admin distribution center
+- `manager_logistik` - Logistics manager
+- `admin_pod` - POD verification admin
+- `driver` - Delivery driver
+
+**Flow:**
+1. Login → JWT token in localStorage
+2. Token auto-injected in API headers
+3. Routes protected with `RoleGuard`
+4. Token expiry → Auto-logout & redirect to login
+
+---
+
+## 📱 Responsive Design
+
+- **Mobile-first** approach
+- **Breakpoints:** 768px (tablet), 1024px (desktop)
+- Sidebar collapses on mobile
+- Touch-friendly spacing & buttons
+
+---
+
+## 🎯 Import Convention (After Refactoring)
+
+```typescript
+// Features
+import { LoginPage } from 'features/auth/pages';
+import { LogistikDashboard } from 'features/dashboard';
+
+// Shared
+import { Header, Sidebar } from 'shared/components';
+import { useApi, useAuth } from 'shared/hooks';
+import { formatCurrency, validateEmail } from 'shared/utils';
+import type { UserRole } from 'shared/types';
+```
+
+---
+
+## 🛠️ Development Best Practices
+
+### File Naming
+- Components: `PascalCase` (e.g., `OrderCard.tsx`)
+- Hooks: `camelCase` with `use` prefix (e.g., `useFetchOrders.ts`)
+- Types: `camelCase.ts` (e.g., `dashboard.ts`)
+
+### Code Organization
+1. External library imports
+2. Shared imports
+3. Feature imports
+4. Types
+5. Styles
+
+### TypeScript
+- Always provide return types for functions
+- Use types instead of interfaces (except for class extensions)
+- Export types explicitly
+
+---
+
+## 📖 Related Documentation
+
+- **ARCHITECTURE_ANALYSIS.md** - Detailed architecture comparison & decision
+- **MIGRATION_GUIDE.md** - Refactoring progress & continuation steps
+- **Backend README** - API endpoints & data models
+- **Main README** - Project overview & system concept
+
+---
+
+## 🤝 Contributing
+
+1. Create feature branch
+2. Follow architecture patterns
+3. Add TypeScript types
+4. Test changes
+5. Lint before commit
+6. Submit PR with description
+
+---
+
+Made with ❤️ for TMS Japfa
 - Delivery confirmation
 - Historical POD data review
 - Monitor and analytics
