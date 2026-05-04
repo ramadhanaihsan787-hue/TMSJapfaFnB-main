@@ -17,6 +17,7 @@ import LogisticsSettings from './features/settings/pages/SettingsPage';
 import LoadPlanner from './features/loadPlanner/pages/LoadPlannerPage';
 import CustomerData from './features/customers/pages/CustomerDataPage';
 import ManagerDashboardPage from './features/manager/pages/ManagerDashboardPage';
+import { DateRangeProvider } from './context/DateRangeContext';
 
 // Admin POD Pages
 import { 
@@ -50,6 +51,7 @@ function App() {
     <Router>
       <AuthProvider>
         <SidebarProvider>
+          <DateRangeProvider>
           <Routes>
             {/* Public Routes */}
             <Route path="/login" element={<LoginPage />} />
@@ -114,6 +116,7 @@ function App() {
             <Route path="*" element={<NotFound />} />
             
           </Routes>
+          </DateRangeProvider>
         </SidebarProvider>
       </AuthProvider>
     </Router>

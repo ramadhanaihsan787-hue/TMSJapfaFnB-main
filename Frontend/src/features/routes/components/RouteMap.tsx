@@ -1,11 +1,16 @@
 // src/features/routes/components/RouteMap.tsx
 import React, { useRef, useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, Circle, Polygon } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import type { RouteItem, DroppedNode } from "../types";
 
-// 🌟 STYLING KHUSUS PETA
+// 🌟 TARIK TOKEN MAPBOX DARI .ENV
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+
+// ==========================================
+// 1. STYLING ANIMASI KHUSUS PETA
+// ==========================================
 const globalStyles = `
     @keyframes markerBlink { 0%, 100% { transform: scale(1); box-shadow: 0 0 0 rgba(0,0,0,0); } 50% { transform: scale(1.2); box-shadow: 0 0 20px currentColor; } }
     @keyframes polylineBlink { 0%, 100% { opacity: 1; filter: drop-shadow(0 0 10px currentColor); } 50% { opacity: 0.3; filter: none; } }
@@ -52,15 +57,31 @@ const GlowPolyline = ({ positions, color, isDimmed, isBlinking }: { positions: [
     );
 };
 
+// ==========================================
+// 2. FAKE ZONE (FUSION DARI TSX 2)
+// ==========================================
+const zones = [
+  {
+    name: "ZONE A",
+    color: "#3b82f6",
+    coords: [ [-6.18, 106.45], [-6.25, 106.45], [-6.25, 106.52], [-6.18, 106.52] ]
+  },
+  {
+    name: "ZONE B",
+    color: "#22c55e",
+    coords: [ [-6.18, 106.52], [-6.25, 106.52], [-6.25, 106.60], [-6.18, 106.60] ]
+  }
+];
+
 interface RouteMapProps {
     routesData: RouteItem[];
     selectedRouteId: string | null;
     truckColors: string[];
     droppedNodesData?: DroppedNode[];
-    onSelectRoute?: (routeId: string | null) => void; // Buat legenda
+    onSelectRoute?: (routeId: string | null) => void;
 }
 
-export default function RouteMap({ routesData, selectedRouteId, truckColors, droppedNodesData = [], onSelectRoute }: RouteMapProps) {
+export default function RouteMap({ routesData, selectedRouteId, truckColors = [], onSelectRoute }: RouteMapProps) {
     const mapRef = useRef<any>(null);
     const defaultCenter: [number, number] = [-6.207356, 106.479163];
 
@@ -68,16 +89,36 @@ export default function RouteMap({ routesData, selectedRouteId, truckColors, dro
         if (mapRef.current) setTimeout(() => { mapRef.current?.invalidateSize(); }, 300);
     }, [routesData, selectedRouteId]);
 
+    // MAPBOX TILE URL (Dark Mode)
+    const mapboxTileUrl = `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/256/{z}/{x}/{y}@2x?access_token=${MAPBOX_TOKEN}`;
+
     return (
         <div className="relative w-full h-full">
-            <MapContainer center={defaultCenter} zoom={10} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }} className="z-0" ref={mapRef} whenReady={() => { setTimeout(() => window.dispatchEvent(new Event('resize')), 400); }}>
-                <TileLayer attribution='&copy; TomTom' url="https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=xUy50YsjmbRexLalxX3ThDpmC1lOzElP" />
+            <MapContainer center={defaultCenter} zoom={10} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }} className="z-0 bg-[#111]" ref={mapRef} whenReady={() => { setTimeout(() => window.dispatchEvent(new Event('resize')), 400); }}>
+                
+                {/* 🌟 3. MAPBOX TILE LAYER */}
+                <TileLayer
+                    attribution='&copy; <a href="https://www.mapbox.com/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    url={mapboxTileUrl}
+                />
 
-                <Marker position={defaultCenter} icon={createNumberedIcon('0', '#1e293b', true, selectedRouteId !== null, false)} zIndexOffset={1000}>
+                {/* 🌟 4. GEOFENCE DEPOT (FUSION DARI TSX 2) */}
+                <Circle center={defaultCenter} radius={2000} pathOptions={{ color: "#ef4444", fillOpacity: 0.05, weight: 1, dashArray: '4, 4' }} />
+
+                {/* 🌟 5. ZONING AREA (FUSION DARI TSX 2) */}
+                {zones.map((z, i) => (
+                    <Polygon key={i} positions={z.coords as any} pathOptions={{ color: z.color, fillOpacity: 0.05, weight: 1, dashArray: '4, 4' }}>
+                        <Tooltip direction="center" permanent className="bg-transparent border-none shadow-none text-white font-bold opacity-50">{z.name}</Tooltip>
+                    </Polygon>
+                ))}
+
+                {/* 🌟 6. MARKER GUDANG JAPFA */}
+                <Marker position={defaultCenter} icon={createNumberedIcon('D', '#ef4444', true, selectedRouteId !== null, false)} zIndexOffset={1000}>
                     <Tooltip direction="top" offset={[0, -16]} opacity={1}><b>Gudang JAPFA Cikupa</b></Tooltip>
-                    <Popup><div className="p-1"><b className="text-lg uppercase text-slate-800">Depo JAPFA Cikupa</b><div className="text-sm font-bold text-primary">06:00 AM (Depart)</div></div></Popup>
+                    <Popup><div className="p-1"><b className="text-lg uppercase text-slate-800">Depo JAPFA Cikupa</b><div className="text-sm font-bold text-red-500">Pusat Distribusi</div></div></Popup>
                 </Marker>
 
+                {/* 🌟 7. RENDER RUTE DAN MARKER TOKO (DARI TSX 1) */}
                 {routesData.map((route, i) => {
                     const color = truckColors[i % truckColors.length];
                     let positions: [number, number][] = [];
@@ -120,21 +161,21 @@ export default function RouteMap({ routesData, selectedRouteId, truckColors, dro
                 })}
             </MapContainer>
 
-            {/* LEGENDA INTERAKTIF (MANUAL TRUK) */}
+            {/* 🌟 8. LEGENDA INTERAKTIF (DARI TSX 1) */}
             {onSelectRoute && routesData.length > 0 && (
-                <div className="absolute bottom-6 right-6 z-[1000] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl p-4 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[250px] overflow-y-auto min-w-[200px]">
-                    <h4 className="text-[10px] font-black uppercase text-slate-500 mb-3 flex items-center justify-between border-b pb-2">
+                <div className="absolute bottom-6 right-6 z-[1000] bg-[#111]/90 backdrop-blur-xl p-4 rounded-xl shadow-2xl border border-slate-700 max-h-[250px] overflow-y-auto min-w-[200px]">
+                    <h4 className="text-[10px] font-black uppercase text-slate-400 mb-3 flex items-center justify-between border-b border-slate-700 pb-2">
                         <span>Rute Aktif</span>
-                        <span className="text-[9px] bg-primary/10 text-primary px-2 py-0.5 rounded">Pilih Manual</span>
+                        <span className="text-[9px] bg-primary/20 text-primary px-2 py-0.5 rounded">Pilih Manual</span>
                     </h4>
                     <div className="space-y-2">
                         {routesData.map((truk, i) => {
                             const isThisSelected = selectedRouteId === truk.routeId;
                             const isOtherSelected = selectedRouteId !== null && !isThisSelected;
                             return (
-                                <div key={i} onClick={() => onSelectRoute(isThisSelected ? null : truk.routeId)} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all select-none ${isThisSelected ? 'bg-slate-100 dark:bg-slate-800 border border-primary scale-105' : 'hover:border-slate-300'} ${isOtherSelected ? 'opacity-40 grayscale' : ''}`}>
-                                    <div className={`w-4 h-4 rounded-full shadow-inner border border-white ${isThisSelected ? 'animate-pulse' : ''}`} style={{ backgroundColor: truckColors[i % truckColors.length] }}></div>
-                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{truk.vehicle}</span>
+                                <div key={i} onClick={() => onSelectRoute(isThisSelected ? null : truk.routeId)} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all select-none ${isThisSelected ? 'bg-slate-800 border border-primary scale-105' : 'hover:bg-slate-800'} ${isOtherSelected ? 'opacity-40 grayscale' : ''}`}>
+                                    <div className={`w-4 h-4 rounded-full shadow-inner border border-[#111] ${isThisSelected ? 'animate-pulse' : ''}`} style={{ backgroundColor: truckColors[i % truckColors.length] }}></div>
+                                    <span className="text-xs font-bold text-slate-200">{truk.vehicle}</span>
                                 </div>
                             )
                         })}

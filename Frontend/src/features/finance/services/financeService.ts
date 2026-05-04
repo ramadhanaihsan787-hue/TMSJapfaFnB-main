@@ -3,34 +3,54 @@ import { api } from '../../../shared/services/apiClient';
 import type { ExpenseEntry } from '../types';
 
 export const financeService = {
-    // Tarik data hari ini buat Kasir Dashboard
-    getTodayExpenses: async () => {
-        const res = await api.get('/finance/expenses/today');
-        return res.data.data; // Balikin array data-nya
+    // 🌟 SUNTIKAN BARU: Tarik Master Data Truk & Driver
+    getMasterData: async () => {
+        // 🌟 FIX CTO: Udah ditambahin /api/ 
+        const [fleetRes, driverRes] = await Promise.all([
+            api.get('/api/fleet/vehicles').catch(() => ({ data: { data: [] } })),
+            api.get('/api/hr/drivers').catch(() => ({ data: { data: [] } }))
+        ]);
+        
+        // Normalisasi data biar UI ga bingung
+        const fleets = (fleetRes.data.data || []).map((v: any) => ({
+            plate: v.license_plate || v.plate,
+            type: v.type || v.vehicle_type || 'CDD'
+        }));
+        
+        const drivers = (driverRes.data.data || []).map((d: any) => d.name);
+        
+        return { fleets, drivers };
     },
 
-    // Tarik data rentang tanggal buat Kasir History
+    getTodayExpenses: async () => {
+        // 🌟 FIX CTO: Tambah /api/
+        const res = await api.get('/api/finance/expenses/today');
+        return res.data.data;
+    },
+
     getExpenseHistory: async (startDate: string, endDate: string) => {
-        const res = await api.get('/finance/expenses', { 
+        // 🌟 FIX CTO: Tambah /api/
+        const res = await api.get('/api/finance/expenses', { 
             params: { start_date: startDate, end_date: endDate } 
         });
         return res.data.data;
     },
 
-    // Save (Create / Update)
     saveExpense: async (payload: ExpenseEntry) => {
         if (payload.id) {
-            const res = await api.put(`/finance/expenses/${payload.id}`, payload);
+            // 🌟 FIX CTO: Tambah /api/
+            const res = await api.put(`/api/finance/expenses/${payload.id}`, payload);
             return res.data;
         } else {
-            const res = await api.post('/finance/expenses', payload);
+            // 🌟 FIX CTO: Tambah /api/
+            const res = await api.post('/api/finance/expenses', payload);
             return res.data;
         }
     },
 
-    // Delete
     deleteExpense: async (id: string) => {
-        const res = await api.delete(`/finance/expenses/${id}`);
+        // 🌟 FIX CTO: Tambah /api/
+        const res = await api.delete(`/api/finance/expenses/${id}`);
         return res.data;
     }
 };

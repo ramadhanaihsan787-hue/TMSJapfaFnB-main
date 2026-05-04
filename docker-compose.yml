@@ -1,0 +1,183 @@
+version: '3.9'
+
+services:
+  # ==========================================
+  # DATABASE - PostgreSQL 12
+  # ==========================================
+  postgres:
+    image: postgres:12-alpine
+    container_name: tms-japfa-db
+    environment:
+      POSTGRES_DB: tms_japfa
+      POSTGRES_USER: japfa_user
+      POSTGRES_PASSWORD: japfa_password_change_me  # ⚠️ GANTI INI DI PRODUCTION!
+      TZ: 'Asia/Jakarta'
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U japfa_user -d tms_japfa"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tms-network
+
+  # ==========================================
+  # BACKEND - FastAPI (Port 8000)
+  # ==========================================
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    container_name: tms-japfa-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # 🌟 Database Configuration
+      DATABASE_URL: postgresql://japfa_user:japfa_password_change_me@postgres:5432/tms_japfa
+      
+      # 🌟 JWT & Security
+      SECRET_KEY: your-super-secret-key-change-this-in-production-12345
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      
+      # 🌟 Application
+      APP_NAME: "TMS JAPFA - AI Engine"
+      APP_VERSION: "2.0.0"
+      APP_DESCRIPTION: "Transport Management System dengan CVRPTW Optimization"
+      DEBUG: "false"  # Set ke "true" hanya untuk development
+      
+      # 🌟 API Keys
+      TOMTOM_API_KEY: your-tomtom-api-key-here
+      
+      # 🌟 VRP Configuration
+      depo_lat: -6.2234
+      depo_lon: 106.5123
+      vrp_start_time: "07:00"
+      vrp_end_time: "17:00"
+      vrp_base_drop_time_mins: 15
+      vrp_var_drop_time_mins: 1
+      vrp_capacity_buffer_percent: 90
+      
+      # 🌟 File Upload
+      UPLOAD_DIR: uploads
+      EPOD_DIR: uploads/epod
+      GEOMETRY_DIR: route_geometries
+      
+      # 🌟 Cost Configuration
+      cost_fuel_per_liter: 12500.0
+      cost_avg_km_per_liter: 5.0
+      cost_driver_salary: 4500000.0
+      cost_overtime_rate: 25000.0
+      
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./Backend:/app
+      - ./Backend/uploads:/app/uploads
+      - ./Backend/route_geometries:/app/route_geometries
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - tms-network
+    restart: unless-stopped
+
+  # ==========================================
+  # FRONTEND - React + Vite (Port 5173)
+  # ==========================================
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile
+      # Untuk development, gunakan target builder atau development image
+      target: builder
+    container_name: tms-japfa-web
+    # Atau uncomment untuk development dengan hot reload:
+    # image: node:20-alpine
+    # command: npm run dev -- --host
+    # volumes:
+    #   - ./Frontend:/app
+    #   - /app/node_modules
+    environment:
+      VITE_API_URL: "http://localhost:8000"
+      NODE_ENV: "development"
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    networks:
+      - tms-network
+    restart: unless-stopped
+
+  # ==========================================
+  # NGINX - Reverse Proxy (Optional, untuk production-like setup)
+  # ==========================================
+  nginx:
+    image: nginx:alpine
+    container_name: tms-japfa-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./Frontend/dist:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - tms-network
+    restart: unless-stopped
+    profiles: ["production"]  # Only enable jika ingin production-like setup
+
+# ==========================================
+# NETWORKS
+# ==========================================
+networks:
+  tms-network:
+    driver: bridge
+
+# ==========================================
+# VOLUMES
+# ==========================================
+volumes:
+  postgres_data:
+    driver: local
+
+# ==========================================
+# USAGE
+# ==========================================
+# 
+# Development dengan auto-reload:
+#   docker-compose up -d
+#
+# Backend logs:
+#   docker-compose logs -f backend
+#
+# Frontend logs:
+#   docker-compose logs -f frontend
+#
+# Stop all:
+#   docker-compose down
+#
+# Remove data (WARNING!):
+#   docker-compose down -v
+#
+# Production-like (dengan Nginx):
+#   docker-compose --profile production up -d
+#
+# Database management:
+#   docker-compose exec postgres psql -U japfa_user -d tms_japfa
+#
+# Backend migrations (if needed):
+#   docker-compose exec backend alembic upgrade head
+#
+# Frontend build:
+#   docker-compose exec frontend npm run build

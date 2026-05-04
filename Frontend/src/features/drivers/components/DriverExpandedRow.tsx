@@ -1,4 +1,4 @@
-import type { DriverData } from '../types/types';
+import type { DriverData } from '../types';
 
 interface DriverExpandedRowProps {
     driver: DriverData;

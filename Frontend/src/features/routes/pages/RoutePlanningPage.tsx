@@ -1,7 +1,7 @@
 // src/features/routes/pages/RoutePlanningPage.tsx
 import React, { useState, useEffect } from "react";
-import { toast } from 'sonner'; // 🌟 SUNTIKAN SONNER!
-import Header from "../../../shared/components/Header"; 
+import { toast } from 'sonner'; 
+// 🌟 KOMPONEN HEADER DIHAPUS DARI SINI
 
 import { useRoutes } from "../hooks/useRoutes";
 import { useUpload } from "../hooks/useUpload";
@@ -16,7 +16,17 @@ import RouteLoadingOverlay from "../components/RouteLoadingOverlay";
 import UploadVerificationModal from "../components/UploadVerificationModal";
 import RoutePreviewModal from "../components/RoutePreviewModal";
 
+// 🌟 IMPORT KURIR JUDUL
+import { useHeaderStore } from "../../../store/useHeaderStore";
+
 export default function RoutePlanningPage() {
+    const { setTitle } = useHeaderStore();
+
+    // 🌟 SET JUDUL SAAT HALAMAN DIBUKA
+    useEffect(() => {
+        setTitle("Route Planning Dashboard");
+    }, [setTitle]);
+
     // ================= STATE LOKAL HALAMAN =================
     const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
     const [isFocusMode, setIsFocusMode] = useState(false);
@@ -52,7 +62,6 @@ export default function RoutePlanningPage() {
         try {
             await optimize();
         } catch (error) {
-            // 🌟 FIX CTO: Ganti alert jadi toast.error
             toast.error('Gagal melakukan optimasi rute!');
         }
     };
@@ -60,13 +69,11 @@ export default function RoutePlanningPage() {
     const handleConfirm = async () => {
         try {
             await confirm();
-            // 🌟 FIX CTO: Ganti setRouteMessage jadi toast.success
             toast.success('Rute berhasil dikunci & disimpan ke Database! 🚀');
             const todayStr = new Date().toISOString().split('T')[0];
             setSelectedDate(todayStr);
             await fetchRoutes(todayStr);
         } catch (error) {
-            // 🌟 FIX CTO: Ganti alert jadi toast.error
             toast.error('Gagal menyimpan rute permanen!');
         }
     };
@@ -84,9 +91,10 @@ export default function RoutePlanningPage() {
     const totalRealDistance = safeRoutesData.reduce((sum, route: any) => sum + (route.totalDistanceKm || route.total_distance_km || 0), 0).toFixed(1);
     
     const selectedRouteData = safeRoutesData.find((r: any) => (r.routeId || r.route_id) === selectedRouteId);
+    
     return (
         <div className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 dark:bg-[#0A0A0A]">
-            <Header title="Route Planning Dashboard" />
+            {/* 🌟 <Header /> UDAH GA ADA DI SINI BIAR GA NUMPUK */}
 
             {/* 🌟 OVERLAYS & MODALS */}
             <RouteLoadingOverlay 
@@ -190,7 +198,6 @@ export default function RoutePlanningPage() {
                         />
                         
                         {droppedNodes.length > 0 && (
-                            // 🌟 FIX CTO: Ganti alert jadi toast.warning (opsional, karena ini cuma interaktif kecil)
                             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border border-red-200 dark:border-red-900 flex items-center gap-2 animate-bounce cursor-pointer hover:scale-105 transition-transform" onClick={() => toast.warning(`Ada ${droppedNodes.length} toko yang gagal di-routing. Silahkan cek data.`)}>
                                 <span className="material-symbols-outlined text-red-600 text-lg">warning</span>
                                 <span className="text-xs font-black text-red-600 uppercase tracking-wider">{droppedNodes.length} Toko Gagal AI!</span>

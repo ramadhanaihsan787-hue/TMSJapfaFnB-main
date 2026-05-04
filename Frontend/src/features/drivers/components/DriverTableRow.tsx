@@ -1,7 +1,7 @@
 // src/features/drivers/components/DriverTableRow.tsx
 import React from 'react';
-import { toast } from 'sonner'; // 🌟 SUNTIKAN SONNER!
-import type { DriverData } from '../types/types';
+import { toast } from 'sonner'; 
+import type { DriverData } from '../types';
 import DriverExpandedRow from './DriverExpandedRow';
 
 interface DriverTableRowProps {

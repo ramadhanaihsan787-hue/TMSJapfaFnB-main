@@ -13,11 +13,16 @@ npm-debug.log*
 # 2. Sampah Backend & Rahasia
 venv/
 env/
+.venv/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 *.db
 .env
 *.env
+.env.local
+.env.*.local
 
 # 🌟 FIX CTO: Folder Spesifik JAPFA TMS
 uploads/
@@ -35,23 +40,59 @@ route_geometries/  # <-- Cegah JSON rute garis aspal VRP TomTom bocor!
 
 # 4. Testing & Coverage
 coverage/
+htmlcov/
+.pytest_cache/
+.coverage
 *.lcov
 
 # 5. Vite / Cache
 .vite/
 .cache/
+.mypy_cache/
 
 # 6. Logs tambahan
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+pip-log.txt
+pip-delete-this-directory.txt
 
 # 7. Temporary files
 *.tmp
 *.temp
+*.bak
+*.swp
+*.swo
+*~
 
 # 8. OS tambahan
 Thumbs.db
 
 # 9. Assets besar (3D)
 frontend/public/truck-model.glb
+
+# 10. Package Manager Lock Files (Optional)
+# poetry.lock
+# Pipfile.lock
+
+# 11. SSL Certificates & Keys (JANGAN PUSH!)
+*.pem
+*.key
+*.crt
+*.cer
+
+# 12. IDE & Tools
+.idea/
+.vscode/
+*.swp
+*.swo
+.netrc
+.ssh/
+
+# 13. Logs
+*.log
+logs/
+
+# 14. Build outputs (Backend)
+Backend/dist/
+Backend/build/

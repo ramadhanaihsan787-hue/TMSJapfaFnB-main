@@ -1,8 +1,8 @@
-import Header from "../../../shared/components/Header"; 
+// src/features/dashboard/pages/LogisticDashboard.tsx
+import { useEffect } from "react";
+// 🌟 KOMPONEN HEADER DIHAPUS DARI SINI
 
-// 🌟 IMPORT SEMUA JURUS YANG UDAH KITA PISAHIN
 import { useDashboardData } from "../hooks/useDashboardData";
-// Naik 1 lantai: pages -> dashboard/components
 import KpiCard from "../components/KpiCard";
 import VolumeChart from "../components/VolumeChart";
 import FleetDonut from "../components/FleetDonut";
@@ -10,8 +10,17 @@ import RejectionList from "../components/RejectionList";
 import AlertList from "../components/AlertList";
 import DashboardMap from "../components/DashboardMap";
 
+// 🌟 IMPORT KURIR JUDUL
+import { useHeaderStore } from "../../../store/useHeaderStore";
+
 export default function LogistikDashboard() {
-    // 🌟 TINGGAL PANGGIL HOOK SAKTI, SEMUA DATA LANGSUNG KELUAR
+    const { setTitle } = useHeaderStore();
+
+    // 🌟 SET JUDUL SAAT HALAMAN DIBUKA
+    useEffect(() => {
+        setTitle("Daily Logistics KPI Dashboard");
+    }, [setTitle]);
+
     const {
         kpiData,
         volumeData,
@@ -25,13 +34,13 @@ export default function LogistikDashboard() {
 
     return (
         <div className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 dark:bg-[#0A0A0A]">
-            <Header title="Daily Logistics KPI Dashboard" />
+            {/* 🌟 <Header /> UDAH GA ADA DI SINI BIAR GA NUMPUK */}
 
             {/* Content Area yang bisa di-scroll */}
             <div className="p-4 md:p-8 flex-1 overflow-y-auto custom-scrollbar">
                 <div className="max-w-[1600px] mx-auto flex flex-col gap-6 md:gap-8">
                     
-                    {/* 🌟 SEKSI 1: 4 KARTU KPI UTAMA */}
+                    {/* SEKSI 1: 4 KARTU KPI UTAMA */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                         <KpiCard
                             title="OTIF Rate"
@@ -73,36 +82,20 @@ export default function LogistikDashboard() {
                         />
                     </div>
 
-                    {/* 🌟 SEKSI 2: GRAFIK VOLUME & UTILISASI ARMADA */}
+                    {/* SEKSI 2: GRAFIK VOLUME & UTILISASI ARMADA */}
                     <div className="flex flex-col lg:flex-row gap-6">
-                        <VolumeChart
-                            volumeData={volumeData}
-                            maxVolume={maxVolume}
-                            isLoading={isLoading}
-                        />
-                        <FleetDonut
-                            fleetData={fleetData}
-                            isLoading={isLoading}
-                        />
+                        <VolumeChart volumeData={volumeData} maxVolume={maxVolume} isLoading={isLoading} />
+                        <FleetDonut fleetData={fleetData} isLoading={isLoading} />
                     </div>
 
-                    {/* 🌟 SEKSI 3: DAFTAR RETUR & NOTIFIKASI LIVE */}
+                    {/* SEKSI 3: DAFTAR RETUR & NOTIFIKASI LIVE */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <RejectionList
-                            rejections={rejections}
-                            isLoading={isLoading}
-                        />
-                        <AlertList
-                            alerts={alerts}
-                            isLoading={isLoading}
-                        />
+                        <RejectionList rejections={rejections} isLoading={isLoading} />
+                        <AlertList alerts={alerts} isLoading={isLoading} />
                     </div>
 
-                    {/* 🌟 SEKSI 4: PETA LIVE TRACKING TRUK JAPFA */}
-                    <DashboardMap
-                        activeTrucks={activeTrucks}
-                        isLoading={isLoading}
-                    />
+                    {/* SEKSI 4: PETA LIVE TRACKING TRUK JAPFA */}
+                    <DashboardMap activeTrucks={activeTrucks} isLoading={isLoading} />
                 </div>
             </div>
         </div>

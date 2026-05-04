@@ -549,3 +549,19 @@ class UserPreferences(BaseModel):
 class UserPreferencesResponse(BaseModel):
     status: str = "success"
     data: UserPreferences
+
+# ==========================================
+# 📝 POD (PROOF OF DELIVERY) VERIFICATION SCHEMAS
+# ==========================================
+class PodApproveRequest(BaseModel):
+    notes: Optional[str] = Field(None, description="Catatan tambahan dari Admin (Opsional)")
+
+class PodRejectRequest(BaseModel):
+    reason: str = Field(..., description="Alasan penolakan POD wajib diisi (contoh: Foto buram, TTD tidak jelas)")
+    notes: Optional[str] = Field(None, description="Catatan tambahan (Opsional)")
+
+class PodVerificationResponse(BaseModel):
+    status: str = "success"
+    message: str
+    order_id: str
+    new_status: str

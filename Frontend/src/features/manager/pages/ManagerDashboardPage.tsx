@@ -1,15 +1,20 @@
+// src/features/manager/pages/ManagerDashboardPage.tsx
+import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
-// 🌟 IMPORT KOMPONEN UI (TANPA MANAGERTABS)
+// 🌟 IMPORT KOMPONEN UI (MANAGER HEADER UDAH DIBUANG)
 import {
-    ManagerHeader,
     OverviewDashboard,
     ReturnDashboard,
     EfficiencyDashboard
 } from '../components';
 
+// 🌟 IMPORT KURIR JUDUL
+import { useHeaderStore } from "../../../store/useHeaderStore";
+
 export default function ManagerDashboardPage() {
     const location = useLocation();
+    const { setTitle } = useHeaderStore();
     
     /**
      * 🌟 LOGIC DARI VERSI KOTOR
@@ -18,11 +23,21 @@ export default function ManagerDashboardPage() {
      */
     const activeTab = location.pathname.split('/').pop() || 'overview';
 
+    // 🌟 SET JUDUL DINAMIS BERDASARKAN TAB
+    useEffect(() => {
+        if (activeTab === 'return') {
+            setTitle("Manager Dashboard / Return & Rejection");
+        } else if (activeTab === 'efficiency') {
+            setTitle("Manager Dashboard / SLA & Efficiency");
+        } else {
+            setTitle("Manager Dashboard / Overview");
+        }
+    }, [activeTab, setTitle]);
+
     return (
         <div className="flex-1 flex flex-col h-screen overflow-hidden bg-gray-50/50 dark:bg-slate-950 text-japfa-dark dark:text-white transition-colors duration-200">
             
-            {/* 🌟 HEADER TETAP DI ATAS SEBAGAI IDENTITAS */}
-            <ManagerHeader />
+            {/* 🌟 <ManagerHeader /> UDAH KITA CABUT DARI SINI BIAR GA DOUBLE! */}
 
             {/* 🌟 AREA KONTEN UTAMA (PLONG TANPA TAB HORIZONTAL) */}
             <main className="flex-1 overflow-y-auto custom-scrollbar">

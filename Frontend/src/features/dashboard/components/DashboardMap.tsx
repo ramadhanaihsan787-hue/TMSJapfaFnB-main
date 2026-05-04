@@ -2,24 +2,31 @@
 
 import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
-import { useLiveTrackingStore } from "../../../store/useLiveTrackingStore";
-
 import "mapbox-gl/dist/mapbox-gl.css";
+
+interface LiveTruck {
+  id: string;
+  driver: string;
+  lat: number;
+  lon: number;
+  status: string;
+  isDelayed: boolean;
+}
+
+interface Props {
+  activeTrucks: LiveTruck[];
+  isLoading: boolean;
+}
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
-export default function DashboardMap() {
+export default function DashboardMap({ activeTrucks, isLoading }: Props) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
 
-  const { trucks, isLoading, startPolling, stopPolling } =
-    useLiveTrackingStore();
-
-  const gudangLatLon: [number, number] = [106.479163, -6.207356]; // lng, lat
-  const [flyToLocation, setFlyToLocation] = useState<[number, number] | null>(
-    null
-  );
+  const gudangLatLon: [number, number] = [106.479163, -6.207356];
+  const [flyToLocation, setFlyToLocation] = useState<[number, number] | null>(null);
 
   // ===============================
   // INIT MAP
@@ -35,31 +42,22 @@ export default function DashboardMap() {
     });
 
     map.addControl(new mapboxgl.NavigationControl());
-
     mapRef.current = map;
 
     return () => map.remove();
   }, []);
 
   // ===============================
-  // POLLING
-  // ===============================
-  useEffect(() => {
-    startPolling(10000);
-    return () => stopPolling();
-  }, [startPolling, stopPolling]);
-
-  // ===============================
   // FLY TO
   // ===============================
   useEffect(() => {
-    if (flyToLocation && mapRef.current) {
-      mapRef.current.flyTo({
-        center: flyToLocation,
-        zoom: 14,
-        duration: 1500,
-      });
-    }
+    if (!flyToLocation || !mapRef.current) return;
+
+    mapRef.current.flyTo({
+      center: flyToLocation,
+      zoom: 14,
+      duration: 1500,
+    });
   }, [flyToLocation]);
 
   // ===============================
@@ -68,7 +66,7 @@ export default function DashboardMap() {
   useEffect(() => {
     if (!mapRef.current) return;
 
-    // hapus marker lama
+    // clear old markers
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
@@ -84,7 +82,7 @@ export default function DashboardMap() {
     markersRef.current.push(depoMarker);
 
     // truck markers
-    trucks.forEach((truck) => {
+    activeTrucks.forEach((truck) => {
       const el = document.createElement("div");
       el.className = truck.isDelayed ? "truck-marker warning" : "truck-marker";
       el.innerHTML = "🚚";
@@ -104,7 +102,7 @@ export default function DashboardMap() {
 
       markersRef.current.push(marker);
     });
-  }, [trucks]);
+  }, [activeTrucks]);
 
   const handleFlyTo = (lat: number, lon: number) => {
     setFlyToLocation([lon, lat]);
@@ -128,10 +126,10 @@ export default function DashboardMap() {
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          {isLoading && trucks.length === 0 ? (
+          {isLoading && activeTrucks.length === 0 ? (
             <span className="text-xs text-gray-400">Loading...</span>
           ) : (
-            trucks.map((truck, i) => (
+            activeTrucks.map((truck, i) => (
               <button
                 key={i}
                 onClick={() => handleFlyTo(truck.lat, truck.lon)}
@@ -161,38 +159,38 @@ export default function DashboardMap() {
       {/* STYLE */}
       <style>{`
         .truck-marker {
-          width: 24px;
-          height: 24px;
+          width: 26px;
+          height: 26px;
           background: #3b82f6;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 12px;
-          box-shadow: 0 0 10px rgba(59,130,246,0.8);
+          font-size: 13px;
+          box-shadow: 0 0 12px rgba(59,130,246,0.9);
           animation: pulse 2s infinite;
         }
 
         .truck-marker.warning {
           background: #f97316;
-          box-shadow: 0 0 12px rgba(249,115,22,0.9);
+          box-shadow: 0 0 14px rgba(249,115,22,1);
         }
 
         .depo-marker {
-          width: 32px;
-          height: 32px;
+          width: 34px;
+          height: 34px;
           background: #e11d48;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
           font-size: 16px;
-          box-shadow: 0 0 12px rgba(225,29,72,0.9);
+          box-shadow: 0 0 14px rgba(225,29,72,1);
         }
 
         @keyframes pulse {
           0% { transform: scale(1); }
-          50% { transform: scale(1.2); }
+          50% { transform: scale(1.25); }
           100% { transform: scale(1); }
         }
       `}</style>

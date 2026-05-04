@@ -1,5 +1,5 @@
 // src/features/fleet/pages/FleetManagementPage.tsx
-import Header from "../../../shared/components/Header"; 
+import { useEffect } from "react";
 import { toast } from 'sonner'; // 🌟 SUNTIKAN SONNER!
 
 import { useFleet } from "../hooks/index";
@@ -10,7 +10,17 @@ import {
     FleetDetailPanel 
 } from "../components";
 
+// 🌟 IMPORT KURIR JUDUL
+import { useHeaderStore } from "../../../store/useHeaderStore";
+
 export default function FleetManagementPage() {
+    const { setTitle } = useHeaderStore();
+
+    // 🌟 SET JUDUL SAAT HALAMAN DIBUKA
+    useEffect(() => {
+        setTitle("Fleet Health & Cold Chain Tracking");
+    }, [setTitle]);
+
     const { 
         loading, 
         fleetList, 
@@ -38,8 +48,7 @@ export default function FleetManagementPage() {
 
     return (
         <div className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 dark:bg-[#0A0A0A]">
-            {/* Header Utama */}
-            <Header title="Fleet Health & Cold Chain Tracking" />
+            {/* 🌟 <Header /> UDAH KITA CABUT DARI SINI BIAR GA DOUBLE! */}
 
             <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
                 

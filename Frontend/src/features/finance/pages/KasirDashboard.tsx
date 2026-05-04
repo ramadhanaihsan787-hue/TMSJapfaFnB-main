@@ -1,21 +1,22 @@
 // src/features/finance/pages/KasirDashboard.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useExpenses } from '../hooks/useExpenses';
-import { FLEET_DATA, DRIVER_NAMES, HELPER_NAMES, formatRp } from '../constants';
+import { formatRp } from '../constants'; 
 import type { ExpenseEntry } from '../types';
 
 export default function KasirDashboard() {
     const topRef = useRef<HTMLDivElement>(null);
     
-    // 🌟 SUNTIKAN HOOK SAKTI KITA!
-    const { entries, isLoading, fetchToday, saveEntry, deleteEntry } = useExpenses();
+    // 🌟 KITA PAKE FETCH TODAY LAGI (Sesuai kemauan Bos Ihsan!)
+    // Ga usah import useDateRange, biarin aja header globalnya mau nampilin kalender apaan.
+    const { entries, fleets, drivers, isLoading, isMasterLoading, fetchToday, fetchMasterData, saveEntry, deleteEntry } = useExpenses();
 
     // Form states
-    const [selectedFleetIdx, setSelectedFleetIdx] = useState(0);
+    const [selectedPlate, setSelectedPlate] = useState('');
     const [isOncall, setIsOncall] = useState(false);
     const [oncallPlate, setOncallPlate] = useState('');
-    const [selectedDriver, setSelectedDriver] = useState(DRIVER_NAMES[0]);
+    const [selectedDriver, setSelectedDriver] = useState('');
     const [customDriver, setCustomDriver] = useState('');
     const [selectedHelper, setSelectedHelper] = useState('');
     const [customHelper, setCustomHelper] = useState('');
@@ -30,7 +31,20 @@ export default function KasirDashboard() {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [detailEntry, setDetailEntry] = useState<ExpenseEntry | null>(null);
 
-    const fleet = FLEET_DATA[selectedFleetIdx];
+    // Initial Fetch (Pasti selalu narik data hari ini)
+    useEffect(() => {
+        fetchToday();
+        fetchMasterData();
+    }, []);
+
+    // AUTO SELECT INDEX 0 SAAT DATA MASTER SELESAI DI LOAD
+    useEffect(() => {
+        if (fleets.length > 0 && !selectedPlate) setSelectedPlate(fleets[0].plate);
+        if (drivers.length > 0 && !selectedDriver) setSelectedDriver(drivers[0]);
+    }, [fleets, drivers]);
+
+    // Computed Values
+    const fleet = fleets.find(f => f.plate === selectedPlate) || fleets[0] || { plate: '', type: 'Unknown' };
     const currentPlate = isOncall ? oncallPlate : fleet.plate;
     const currentDriver = selectedDriver === '__custom__' ? customDriver : selectedDriver;
     const currentHelper = selectedHelper === '__custom__' ? customHelper : selectedHelper;
@@ -38,29 +52,24 @@ export default function KasirDashboard() {
     const n = (v: string | number) => Number(v) || 0;
     const total = n(bbm) + n(tol) + n(parkir) + n(parkirLiar) + n(kuliAngkut) + n(lainLain);
 
-    // Ambil data hari ini saat halaman pertama dibuka
-    useEffect(() => {
-        fetchToday();
-    }, []);
-
     const resetForm = () => {
         setBbm(''); setTol(''); setParkir(''); setParkirLiar('');
         setKuliAngkut(''); setLainLain('');
-        setSelectedDriver(DRIVER_NAMES[0]); setCustomDriver('');
+        setSelectedDriver(drivers[0] || ''); setCustomDriver('');
         setSelectedHelper(''); setCustomHelper('');
+        setIsOncall(false); setOncallPlate('');
         setEditingId(null);
     };
 
     const handleSubmit = async () => {
-        if (n(bbm) === 0 && n(tol) === 0 && n(parkir) === 0) {
-            toast.error('Minimal salah satu biaya (BBM, Tol, atau Parkir) wajib diisi!');
+        if (n(bbm) === 0 && n(tol) === 0 && n(parkir) === 0 && total === 0) {
+            toast.error('Minimal salah satu biaya wajib diisi!');
             return;
         }
         if (!currentPlate || !currentDriver) {
             toast.error('Plat nomor dan nama driver wajib diisi!');
             return;
         }
-        if (total === 0) return;
 
         const now = new Date();
         const originalEntry = editingId ? entries.find(e => e.id === editingId) : null;
@@ -78,25 +87,30 @@ export default function KasirDashboard() {
             helperName: currentHelper, notes: '', total
         };
 
-        // 🌟 Tembak fungsi save di hook
         const success = await saveEntry(payload);
         if (success) {
             resetForm();
-            fetchToday();
+            fetchToday(); // 🌟 Pastiin selalu refresh data hari ini pas abis input
         }
     };
 
     const handleEdit = (entry: ExpenseEntry) => {
         setEditingId(entry.id!);
-        const idx = FLEET_DATA.findIndex(f => f.plate === entry.plate);
-        if (idx >= 0) { setSelectedFleetIdx(idx); setIsOncall(false); }
-        else { setIsOncall(true); setOncallPlate(entry.plate); }
         
-        if (DRIVER_NAMES.includes(entry.driver)) { setSelectedDriver(entry.driver); }
+        const isFleetExist = fleets.some(f => f.plate === entry.plate);
+        if (isFleetExist && !entry.isOncall) { 
+            setSelectedPlate(entry.plate); 
+            setIsOncall(false); 
+        } else { 
+            setIsOncall(true); 
+            setOncallPlate(entry.plate); 
+        }
+        
+        if (drivers.includes(entry.driver)) { setSelectedDriver(entry.driver); }
         else { setSelectedDriver('__custom__'); setCustomDriver(entry.driver); }
         
         if (!entry.helperName) { setSelectedHelper(''); }
-        else if (HELPER_NAMES.includes(entry.helperName)) { setSelectedHelper(entry.helperName); }
+        else if (drivers.includes(entry.helperName)) { setSelectedHelper(entry.helperName); }
         else { setSelectedHelper('__custom__'); setCustomHelper(entry.helperName); }
         
         setBbm(entry.bbm ? String(entry.bbm) : '');
@@ -109,7 +123,6 @@ export default function KasirDashboard() {
     };
 
     const handleDelete = async (id: string) => {
-        // 🌟 Tembak fungsi delete di hook
         const success = await deleteEntry(id);
         if (success) fetchToday();
     };
@@ -128,13 +141,19 @@ export default function KasirDashboard() {
                         </p>
                     </div>
 
-                    <section className="bg-white dark:bg-[#111111] p-6 lg:p-8 rounded-xl shadow-sm dark:shadow-[0_8px_40px_rgba(0,0,0,0.3)] border border-slate-100 dark:border-white/5">
+                    <section className="bg-white dark:bg-[#111111] p-6 lg:p-8 rounded-xl shadow-sm dark:shadow-[0_8px_40px_rgba(0,0,0,0.3)] border border-slate-100 dark:border-white/5 relative">
+                        {/* LOADING OVERLAY JIKA DATA MASTER BELUM SIAP */}
+                        {isMasterLoading && (
+                            <div className="absolute inset-0 bg-white/50 dark:bg-[#111]/50 backdrop-blur-sm z-10 flex items-center justify-center rounded-xl">
+                                <span className="material-symbols-outlined animate-spin text-primary text-4xl">refresh</span>
+                            </div>
+                        )}
                         <div className="flex items-center justify-between mb-8">
                             <div className="flex items-center gap-3">
                                 <span className="material-symbols-outlined text-primary text-3xl">local_shipping</span>
                                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">Fleet Information</h2>
                             </div>
-                            <label className="flex items-center gap-3 cursor-pointer group">
+                            <label className="flex items-center gap-3 cursor-pointer group z-20">
                                 <input
                                     type="checkbox" checked={isOncall}
                                     onChange={e => setIsOncall(e.target.checked)}
@@ -159,12 +178,13 @@ export default function KasirDashboard() {
                                     <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 px-1">Nopol Armada</label>
                                     <div className="relative">
                                         <select
-                                            value={selectedFleetIdx} onChange={e => setSelectedFleetIdx(Number(e.target.value))}
+                                            value={selectedPlate} onChange={e => setSelectedPlate(e.target.value)}
                                             className="w-full bg-slate-50 dark:bg-[#1A1A1A] border-none rounded-lg py-4 px-4 font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/30 appearance-none cursor-pointer"
                                         >
-                                            {FLEET_DATA.map((f, i) => (
-                                                <option key={f.plate} value={i}>{f.plate} — {f.type}</option>
+                                            {fleets.map(f => (
+                                                <option key={f.plate} value={f.plate}>{f.plate} — {f.type}</option>
                                             ))}
+                                            {fleets.length === 0 && <option value="">Loading...</option>}
                                         </select>
                                         <span className="material-symbols-outlined absolute right-4 top-4 text-slate-400 pointer-events-none">expand_more</span>
                                     </div>
@@ -177,7 +197,7 @@ export default function KasirDashboard() {
                                         value={selectedDriver} onChange={e => setSelectedDriver(e.target.value)}
                                         className="w-full bg-slate-50 dark:bg-[#1A1A1A] border-none rounded-lg py-4 px-4 font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/30 appearance-none cursor-pointer"
                                     >
-                                        {DRIVER_NAMES.map(name => <option key={name} value={name}>{name}</option>)}
+                                        {drivers.map(name => <option key={name} value={name}>{name}</option>)}
                                         <option value="__custom__">— Driver Pengganti —</option>
                                     </select>
                                     <span className="material-symbols-outlined absolute right-4 top-4 text-slate-400 pointer-events-none">expand_more</span>
@@ -195,7 +215,7 @@ export default function KasirDashboard() {
                                         className="w-full bg-slate-50 dark:bg-[#1A1A1A] border-none rounded-lg py-4 px-4 font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/30 appearance-none cursor-pointer"
                                     >
                                         <option value="">— Tidak ada helper —</option>
-                                        {HELPER_NAMES.map(name => <option key={name} value={name}>{name}</option>)}
+                                        {drivers.map(name => <option key={`h-${name}`} value={name}>{name}</option>)}
                                         <option value="__custom__">— Helper Pengganti —</option>
                                     </select>
                                     <span className="material-symbols-outlined absolute right-4 top-4 text-slate-400 pointer-events-none">expand_more</span>
@@ -244,7 +264,7 @@ export default function KasirDashboard() {
                 </div>
 
                 {/* KANAN: Summary Breakdown */}
-                <aside className="w-full lg:w-96 sticky top-28 space-y-6 shrink-0">
+                <aside className="w-full lg:w-96 sticky top-28 space-y-6 shrink-0 z-20">
                     <div className="bg-white dark:bg-[#111111] rounded-xl shadow-sm dark:shadow-[0_8px_40px_rgba(0,0,0,0.3)] border border-slate-100 dark:border-white/5 overflow-hidden">
                         <div className="bg-gradient-to-r from-[#994700] to-[#FF7A00] p-6 text-white">
                             <h3 className="font-extrabold text-xl tracking-tight">Summary Breakdown</h3>
@@ -279,7 +299,7 @@ export default function KasirDashboard() {
                                 </div>
                                 <button
                                     onClick={handleSubmit}
-                                    disabled={total === 0 || isLoading}
+                                    disabled={total === 0 || isLoading || isMasterLoading}
                                     className="w-full bg-gradient-to-r from-[#994700] to-[#FF7A00] disabled:opacity-40 disabled:cursor-not-allowed text-white py-5 rounded-lg font-extrabold text-lg shadow-lg hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3"
                                 >
                                     <span>{isLoading ? 'Menyimpan...' : (editingId ? 'Update Biaya' : 'Submit Biaya')}</span>
@@ -321,7 +341,7 @@ export default function KasirDashboard() {
                             {isLoading && entries.length === 0 ? (
                                 <tr>
                                     <td colSpan={5} className="py-16 text-center text-slate-400 dark:text-slate-500">
-                                        <span className="material-symbols-outlined text-5xl mb-4 block animate-spin">refresh</span>
+                                        <span className="material-symbols-outlined text-5xl mb-4 block animate-spin text-primary">refresh</span>
                                         <p className="font-semibold">Memuat data dari server...</p>
                                     </td>
                                 </tr>
@@ -329,7 +349,7 @@ export default function KasirDashboard() {
                                 <tr>
                                     <td colSpan={5} className="py-16 text-center text-slate-400 dark:text-slate-500">
                                         <span className="material-symbols-outlined text-5xl mb-4 block opacity-30">receipt_long</span>
-                                        <p className="font-semibold">Belum ada data</p>
+                                        <p className="font-semibold">Belum ada data inputan hari ini.</p>
                                     </td>
                                 </tr>
                             ) : entries.slice(0, 10).map((e, i) => (
@@ -376,21 +396,22 @@ export default function KasirDashboard() {
                         <div className="p-6 space-y-4">
                             <div className="flex justify-between items-center text-sm mb-4">
                                 <div>
-                                    <p className="text-slate-500 dark:text-slate-400 font-medium">Armada / Waktu</p>
-                                    <p className="font-bold text-slate-900 dark:text-white mt-1">{detailEntry.plate} • {detailEntry.time} ({new Date(detailEntry.date).toLocaleDateString('id-ID')})</p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Armada / Waktu</p>
+                                    <p className="font-bold text-slate-900 dark:text-white">{detailEntry.plate}</p>
+                                    <p className="text-xs text-slate-500">{detailEntry.time} • {new Date(detailEntry.date).toLocaleDateString('id-ID')}</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-slate-500 dark:text-slate-400 font-medium">Driver</p>
-                                    <p className="font-bold text-slate-900 dark:text-white mt-1">{detailEntry.driver}</p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Driver</p>
+                                    <p className="font-bold text-slate-900 dark:text-white">{detailEntry.driver}</p>
                                 </div>
                             </div>
                             {detailEntry.helperName && (
                                 <div className="flex justify-between items-center text-sm mb-4 pb-4 border-b border-slate-100 dark:border-white/5">
-                                    <span className="text-slate-500 dark:text-slate-400 font-medium">Helper</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Helper</span>
                                     <span className="font-bold text-slate-900 dark:text-white">{detailEntry.helperName}</span>
                                 </div>
                             )}
-                            <div className="space-y-3">
+                            <div className="space-y-3 bg-slate-50 dark:bg-[#111] p-4 rounded-xl border border-slate-100 dark:border-white/5">
                                 {[
                                     { label: 'BBM (Solar)', val: detailEntry.bbm },
                                     { label: 'Total Tol', val: detailEntry.tol },
@@ -400,13 +421,13 @@ export default function KasirDashboard() {
                                     { label: 'Helper Harian', val: detailEntry.lainLain }
                                 ].map(item => item.val > 0 && (
                                     <div key={item.label} className="flex justify-between text-sm items-center">
-                                        <span className="text-slate-600 dark:text-slate-400">{item.label}</span>
-                                        <span className="font-semibold text-slate-900 dark:text-white">{formatRp(item.val)}</span>
+                                        <span className="font-medium text-slate-600 dark:text-slate-400">{item.label}</span>
+                                        <span className="font-bold text-slate-900 dark:text-white">{formatRp(item.val)}</span>
                                     </div>
                                 ))}
                             </div>
-                            <div className="mt-6 pt-4 border-t border-slate-100 dark:border-white/5 flex justify-between items-center">
-                                <span className="font-bold text-slate-500 dark:text-slate-400">Grand Total</span>
+                            <div className="mt-2 pt-2 flex justify-between items-center">
+                                <span className="font-black uppercase tracking-widest text-slate-500">Grand Total</span>
                                 <span className="text-2xl font-black text-primary">{formatRp(detailEntry.total)}</span>
                             </div>
                         </div>

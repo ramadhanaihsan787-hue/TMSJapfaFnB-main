@@ -1,27 +1,18 @@
 // src/features/finance/pages/KasirHistory.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useExpenses } from '../hooks/useExpenses';
 import { formatRp } from '../constants';
+import { useDateRange } from '../../../context/DateRangeContext'; // 🌟 IMPORT INI
 import type { ExpenseEntry } from '../types';
 
 export default function KasirHistory() {
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
+    // 🌟 Tarik tanggal langsung dari Header temen lu!
+    const { startDate, endDate } = useDateRange();
+    
     const [detailEntry, setDetailEntry] = useState<ExpenseEntry | null>(null);
-
-    // 🌟 SUNTIKAN HOOK SAKTI KITA!
     const { entries, isLoading, fetchHistory } = useExpenses();
 
-    useEffect(() => {
-        const today = new Date();
-        const start = new Date(today);
-        start.setDate(today.getDate() - 7);
-        
-        setStartDate(start.toISOString().split('T')[0]);
-        setEndDate(today.toISOString().split('T')[0]);
-    }, []);
-
-    // Auto-fetch setiap tanggal di-ubah
+    // 🌟 Fetch data setiap kali kalender di Header diubah
     useEffect(() => {
         if (startDate && endDate) {
             fetchHistory(startDate, endDate);
@@ -36,45 +27,24 @@ export default function KasirHistory() {
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Riwayat Cost</h1>
                     <p className="text-slate-500 dark:text-slate-400 font-medium mt-2">
-                        Filter dan tinjau riwayat input biaya operasional.
+                        Menampilkan data dari <span className="font-bold text-primary">{new Date(startDate).toLocaleDateString('id-ID')}</span> sampai <span className="font-bold text-primary">{new Date(endDate).toLocaleDateString('id-ID')}</span>. Ubah tanggal di pojok kanan atas layar.
                     </p>
+                </div>
+                
+                {/* Kotak Total Expense */}
+                <div className="w-full sm:w-auto bg-gradient-to-r from-[#994700] to-[#FF7A00] px-8 py-4 rounded-xl text-white shadow-lg flex items-center gap-4">
+                    <div className="bg-white/20 p-3 rounded-xl">
+                        <span className="material-symbols-outlined text-white text-3xl">summarize</span>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-[11px] font-black uppercase tracking-widest text-white/80">Total Pengeluaran</span>
+                        <span className="font-extrabold text-2xl">{formatRp(totalExpense)}</span>
+                    </div>
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-[#111111] rounded-xl shadow-sm dark:shadow-[0_8px_40px_rgba(0,0,0,0.3)] border border-slate-100 dark:border-white/5 overflow-hidden">
-                <div className="p-6 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
-                    <div className="flex flex-col sm:flex-row gap-4 items-end">
-                        <div className="flex-1 w-full">
-                            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                                Tanggal Awal
-                            </label>
-                            <input
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                                className="w-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                            />
-                        </div>
-                        <div className="flex-1 w-full">
-                            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                                Tanggal Akhir
-                            </label>
-                            <input
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                className="w-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                            />
-                        </div>
-                        <div className="w-full sm:w-auto bg-gradient-to-r from-[#994700] to-[#FF7A00] px-8 py-3 rounded-lg text-white shadow-lg flex items-center justify-center gap-2">
-                            <span className="material-symbols-outlined text-white/80">summarize</span>
-                            <div className="flex flex-col items-start">
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-white/80 leading-none">Total Filter</span>
-                                <span className="font-extrabold text-lg leading-none mt-1">{formatRp(totalExpense)}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div className="bg-white dark:bg-[#111111] rounded-xl shadow-sm border border-slate-100 dark:border-white/5 overflow-hidden">
+                {/* 🌟 FORM FILTER TANGGAL LAMA UDAH DIHAPUS DARI SINI */}
 
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
@@ -90,22 +60,25 @@ export default function KasirHistory() {
                             {isLoading ? (
                                 <tr>
                                     <td colSpan={4} className="py-16 text-center text-slate-400 dark:text-slate-500">
-                                        <span className="material-symbols-outlined text-5xl mb-4 block animate-spin">refresh</span>
-                                        <p className="font-semibold">Memuat data dari server...</p>
+                                        <span className="material-symbols-outlined text-5xl mb-4 block animate-spin text-primary">refresh</span>
+                                        <p className="font-bold">Menarik data dari server...</p>
                                     </td>
                                 </tr>
                             ) : entries.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="py-16 text-center text-slate-400 dark:text-slate-500">
-                                        <span className="material-symbols-outlined text-5xl mb-4 block opacity-30">history</span>
-                                        <p className="font-semibold">Tidak ada data untuk rentang tanggal ini</p>
+                                    <td colSpan={4} className="py-20 text-center text-slate-400 dark:text-slate-500">
+                                        <div className="bg-slate-50 dark:bg-white/5 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <span className="material-symbols-outlined text-4xl opacity-50">history</span>
+                                        </div>
+                                        <p className="font-bold text-lg text-slate-600 dark:text-slate-300">Tidak ada pengeluaran</p>
+                                        <p className="text-sm mt-1">Pada rentang tanggal yang dipilih.</p>
                                     </td>
                                 </tr>
                             ) : entries.map((e, i) => (
                                 <tr key={e.id} className={`hover:bg-slate-50 dark:hover:bg-white/5 transition-colors ${i % 2 === 1 ? 'bg-slate-50/50 dark:bg-white/[0.02]' : ''}`}>
                                     <td className="py-5 px-6 font-medium text-slate-700 dark:text-slate-300">
                                         <div>{new Date(e.date).toLocaleDateString('id-ID')}</div>
-                                        <div className="text-xs text-slate-400">{e.time}</div>
+                                        <div className="text-xs text-slate-400 font-bold">{e.time}</div>
                                     </td>
                                     <td className="py-5 px-6 font-bold text-slate-900 dark:text-white">
                                         {e.plate}
@@ -125,7 +98,7 @@ export default function KasirHistory() {
                 </div>
             </div>
 
-            {/* Modal Detail Biaya */}
+            {/* Modal Detail Biaya (Tetap Sama) */}
             {detailEntry && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={() => setDetailEntry(null)}>
                     <div className="bg-white dark:bg-[#1A1A1A] rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-[slideUp_0.3s_ease-out]" onClick={e => e.stopPropagation()}>
@@ -138,21 +111,22 @@ export default function KasirHistory() {
                         <div className="p-6 space-y-4">
                             <div className="flex justify-between items-center text-sm mb-4">
                                 <div>
-                                    <p className="text-slate-500 dark:text-slate-400 font-medium">Armada / Waktu</p>
-                                    <p className="font-bold text-slate-900 dark:text-white mt-1">{detailEntry.plate} • {detailEntry.time} ({new Date(detailEntry.date).toLocaleDateString('id-ID')})</p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Armada / Waktu</p>
+                                    <p className="font-bold text-slate-900 dark:text-white">{detailEntry.plate}</p>
+                                    <p className="text-xs text-slate-500">{detailEntry.time} • {new Date(detailEntry.date).toLocaleDateString('id-ID')}</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-slate-500 dark:text-slate-400 font-medium">Driver</p>
-                                    <p className="font-bold text-slate-900 dark:text-white mt-1">{detailEntry.driver}</p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Driver</p>
+                                    <p className="font-bold text-slate-900 dark:text-white">{detailEntry.driver}</p>
                                 </div>
                             </div>
                             {detailEntry.helperName && (
                                 <div className="flex justify-between items-center text-sm mb-4 pb-4 border-b border-slate-100 dark:border-white/5">
-                                    <span className="text-slate-500 dark:text-slate-400 font-medium">Helper</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Helper</span>
                                     <span className="font-bold text-slate-900 dark:text-white">{detailEntry.helperName}</span>
                                 </div>
                             )}
-                            <div className="space-y-3">
+                            <div className="space-y-3 bg-slate-50 dark:bg-[#111] p-4 rounded-xl border border-slate-100 dark:border-white/5">
                                 {[
                                     { label: 'BBM (Solar)', val: detailEntry.bbm },
                                     { label: 'Total Tol', val: detailEntry.tol },
@@ -162,13 +136,13 @@ export default function KasirHistory() {
                                     { label: 'Helper Harian', val: detailEntry.lainLain }
                                 ].map(item => item.val > 0 && (
                                     <div key={item.label} className="flex justify-between text-sm items-center">
-                                        <span className="text-slate-600 dark:text-slate-400">{item.label}</span>
-                                        <span className="font-semibold text-slate-900 dark:text-white">{formatRp(item.val)}</span>
+                                        <span className="font-medium text-slate-600 dark:text-slate-400">{item.label}</span>
+                                        <span className="font-bold text-slate-900 dark:text-white">{formatRp(item.val)}</span>
                                     </div>
                                 ))}
                             </div>
-                            <div className="mt-6 pt-4 border-t border-slate-100 dark:border-white/5 flex justify-between items-center">
-                                <span className="font-bold text-slate-500 dark:text-slate-400">Grand Total</span>
+                            <div className="mt-2 pt-2 flex justify-between items-center">
+                                <span className="font-black uppercase tracking-widest text-slate-500">Grand Total</span>
                                 <span className="text-2xl font-black text-primary">{formatRp(detailEntry.total)}</span>
                             </div>
                         </div>

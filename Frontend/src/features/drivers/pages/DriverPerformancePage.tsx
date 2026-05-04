@@ -1,4 +1,4 @@
-import Header from "../../../shared/components/Header"; 
+import { useEffect } from "react";
 
 // 🌟 IMPORT HOOK SAKTI KITA
 import { useDriverPerformance } from "../hooks";
@@ -10,7 +10,17 @@ import {
     DriverPagination 
 } from "../components";
 
+// 🌟 IMPORT KURIR JUDUL
+import { useHeaderStore } from "../../../store/useHeaderStore";
+
 export default function DriverPerformancePage() {
+    const { setTitle } = useHeaderStore();
+
+    // 🌟 SET JUDUL SAAT HALAMAN DIBUKA
+    useEffect(() => {
+        setTitle("Driver List");
+    }, [setTitle]);
+
     // 🌟 PANGGIL SEMUA DATA DARI HOOK PUSAT
     const { 
         loading, 
@@ -30,7 +40,7 @@ export default function DriverPerformancePage() {
 
     return (
         <div className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 dark:bg-[#0A0A0A]">
-            <Header title="Driver List" />
+            {/* 🌟 <Header /> UDAH KITA CABUT DARI SINI BIAR GA DOUBLE! */}
 
             <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
                 

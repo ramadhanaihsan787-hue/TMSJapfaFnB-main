@@ -1,3 +1,8 @@
+// src/features/drivers/types.ts
+
+// ==========================================
+// ROUTE STOP TYPES
+// ==========================================
 export type StopStatus = 'completed' | 'active' | 'pending';
 
 export interface RouteStop {
@@ -7,4 +12,25 @@ export interface RouteStop {
     timeWindow: string;
     weight: string;
     status: StopStatus;
+}
+
+// ==========================================
+// DRIVER DATA TYPES
+// ==========================================
+export type DriverStatus = 'On Route' | 'Resting' | 'Offline' | string;
+
+export interface DriverData {
+    id: string;
+    name: string;
+    avatar: string;
+    status: DriverStatus;
+    score: number;
+    ontime: string;
+    doSuccess: string;
+    truck: string;
+    distanceToday: number;
+    doCompleted: number;
+    doTotal: number;
+    lastLocation: string;
+    lastUpdate: string;
 }

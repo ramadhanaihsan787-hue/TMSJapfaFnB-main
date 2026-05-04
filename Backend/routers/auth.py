@@ -35,10 +35,15 @@ def login(
         "user_id": user.id
     }
 
+# ==========================================================
+# 🌟 SUNTIKAN CTO POINT 6: GEMBOK ENDPOINT REGISTER!
+# ==========================================================
 @router.post("/auth/register", status_code=201, response_model=schemas.RegisterResponse)
 def register_user(
     data: schemas.RegisterRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    # 🔥 INI GEMBOKNYA! CUMA ADMIN & MANAGER YANG BOLEH BIKIN AKUN!
+    current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))
 ):
     VALID_ROLES = ["manager_logistik", "admin_distribusi", "admin_pod", "driver", "kasir"]
     
@@ -86,8 +91,6 @@ def get_all_users(
             for u in users
         ]
     }
-
-# Tambahkan ini di bagian bawah routers/auth.py
 
 # ==========================================
 # ENDPOINT: GET USER PREFERENCES

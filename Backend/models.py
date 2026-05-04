@@ -144,7 +144,6 @@ class TMSRoutePlan(Base):
     route_id = Column(String(50), primary_key=True)
     planning_date = Column(Date, default=datetime.date.today)
     
-    # 🌟 FIX 4: vehicle_id sekarang Integer (konsisten dengan FleetVehicle)
     vehicle_id = Column(Integer, ForeignKey("fleet_vehicles.vehicle_id"))
     driver_id = Column(Integer, ForeignKey("hr_drivers.driver_id"))
     

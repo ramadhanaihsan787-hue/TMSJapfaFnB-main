@@ -2,6 +2,7 @@
 Authentication Service - User login, registration, and token management
 """
 from sqlalchemy.orm import Session
+from datetime import timedelta # 🌟 IMPORT TIMEDELTA BUAT NGATUR WAKTU
 from core.security import verify_password, get_password_hash, create_access_token
 import models
 
@@ -13,14 +14,6 @@ class AuthService:
     def authenticate_user(db: Session, username: str, password: str) -> models.User:
         """
         Authenticate user by username and password
-        
-        Args:
-            db: Database session
-            username: User's username
-            password: User's password
-            
-        Returns:
-            User object if credentials valid, None otherwise
         """
         user = db.query(models.User).filter(
             models.User.username == username
@@ -34,16 +27,7 @@ class AuthService:
     
     @staticmethod
     def get_user_by_username(db: Session, username: str) -> models.User:
-        """
-        Get user by username
-        
-        Args:
-            db: Database session
-            username: User's username
-            
-        Returns:
-            User object if found, None otherwise
-        """
+        """Get user by username"""
         return db.query(models.User).filter(
             models.User.username == username
         ).first()
@@ -51,16 +35,7 @@ class AuthService:
     
     @staticmethod
     def get_user_by_id(db: Session, user_id: int) -> models.User:
-        """
-        Get user by ID
-        
-        Args:
-            db: Database session
-            user_id: User ID
-            
-        Returns:
-            User object if found, None otherwise
-        """
+        """Get user by ID"""
         return db.query(models.User).filter(
             models.User.id == user_id
         ).first()
@@ -74,23 +49,7 @@ class AuthService:
         full_name: str,
         role: str
     ) -> models.User:
-        """
-        Create new user
-        
-        Args:
-            db: Database session
-            username: User's username (must be unique)
-            password: User's password (will be hashed)
-            full_name: User's full name
-            role: User's role
-            
-        Returns:
-            Created User object
-            
-        Raises:
-            ValueError: If username already exists
-        """
-        # Check if username already exists
+        """Create new user"""
         existing = db.query(models.User).filter(
             models.User.username == username
         ).first()
@@ -98,7 +57,6 @@ class AuthService:
         if existing:
             raise ValueError(f"Username '{username}' already exists!")
         
-        # Create new user
         new_user = models.User(
             username=username,
             hashed_password=get_password_hash(password),
@@ -115,51 +73,30 @@ class AuthService:
     
     @staticmethod
     def create_access_token_for_user(user: models.User) -> str:
-        """
-        Create JWT access token for user
+        """Create JWT access token for user"""
         
-        Args:
-            user: User object
-            
-        Returns:
-            JWT token string
-        """
+        # 🌟 SUNTIKAN CTO: UMUR TOKEN DISET 120 MENIT (2 JAM) BIAR SUPIR NYAMAN!
+        token_lifespan = timedelta(minutes=120)
+        
         return create_access_token(
             data={
                 "sub": user.username,
                 "role": user.role.value,
                 "user_id": user.id
-            }
+            },
+            expires_delta=token_lifespan # 🌟 KITA LEMPAR KE SECURITY ENGINE
         )
     
     
     @staticmethod
     def get_all_users(db: Session) -> list:
-        """
-        Get all users (admin only)
-        
-        Args:
-            db: Database session
-            
-        Returns:
-            List of User objects
-        """
+        """Get all users (admin only)"""
         return db.query(models.User).all()
     
     
     @staticmethod
     def update_user_password(db: Session, user_id: int, new_password: str) -> models.User:
-        """
-        Update user's password
-        
-        Args:
-            db: Database session
-            user_id: User ID
-            new_password: New password
-            
-        Returns:
-            Updated User object
-        """
+        """Update user's password"""
         user = db.query(models.User).filter(models.User.id == user_id).first()
         
         if user:

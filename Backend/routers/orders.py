@@ -66,7 +66,6 @@ def parse_time_window(keterangan: str, default_start: int, default_end: int):
     return window_start, window_end, priority_first
 
 
-# 🌟 SUNTIKAN RESPONSE_MODEL
 @router.post("/orders/upload", response_model=schemas.UploadResponse)
 async def upload_sap_file(
     file: UploadFile = File(...),
@@ -191,7 +190,7 @@ async def upload_sap_file(
     db.commit()
     return {"message": f"Upload selesai! {count} DO berhasil, {len(failed_list)} gagal.", "success_list": success_list, "failed_list": failed_list}
 
-# 🌟 SUNTIKAN RESPONSE_MODEL
+
 @router.put("/orders/{order_id}/time", response_model=schemas.OrderActionResponse)
 def update_time_window(
     order_id: str, data: TimeUpdateRequest, db: Session = Depends(get_db), current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))
@@ -208,7 +207,7 @@ def update_time_window(
         return {"message": f"Batas waktu {order.customer_name} diubah ke {data.jam_maksimal}", "order_id": order_id, "new_window_end": order.delivery_window_end}
     except Exception: raise HTTPException(status_code=400, detail="Format jam salah! Gunakan HH:MM")
 
-# 🌟 SUNTIKAN RESPONSE_MODEL
+
 @router.put("/orders/{order_id}/coordinate", response_model=schemas.OrderActionResponse)
 def update_coordinate(
     order_id: str, data: CoordinateUpdateRequest, db: Session = Depends(get_db), current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))
@@ -231,7 +230,7 @@ def update_coordinate(
     db.commit()
     return {"message": "Koordinat berhasil diupdate dan disimpan ke Master Database!", "order_id": order_id}
 
-# 🌟 SUNTIKAN RESPONSE_MODEL
+
 @router.get("/orders", response_model=schemas.PendingOrderResponse)
 def get_pending_orders(status: Optional[str] = None, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     query = db.query(models.DeliveryOrder)
@@ -248,4 +247,74 @@ def get_pending_orders(status: Optional[str] = None, db: Session = Depends(get_d
             "delivery_window_start": o.delivery_window_start, "delivery_window_end": o.delivery_window_end,
             "status": o.status.value, "items": json.loads(o.service_type) if o.service_type and o.service_type.startswith('[') else []
         } for o in orders]
+    }
+
+
+# =================================================================================
+# 🌟 SUNTIKAN CTO: ENDPOINT BUAT APPROVE / REJECT E-POD (SESUAI REQUEST TEMEN LU)
+# =================================================================================
+
+@router.put("/orders/{order_id}/pod/approve", response_model=schemas.PodVerificationResponse)
+def approve_pod(
+    order_id: str, 
+    data: schemas.PodApproveRequest, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(require_role("admin_pod"))
+):
+    # Cari orderannya
+    order = db.query(models.DeliveryOrder).filter(models.DeliveryOrder.order_id == order_id).first()
+    if not order: 
+        raise HTTPException(status_code=404, detail="Order tidak ditemukan")
+    
+    # Validasi: POD cuma bisa di-approve kalau statusnya lagi nunggu verifikasi atau udah di-upload supir
+    # Asumsi: Driver udah upload jadi statusnya delivered_pod_uploaded
+    if order.status != models.DOStatus.delivered_pod_uploaded:
+        raise HTTPException(status_code=400, detail=f"Tidak bisa approve POD. Status DO saat ini: {order.status.value}")
+
+    # Ubah status jadi selesai (POD valid)
+    order.status = models.DOStatus.delivered_pod_verified
+    
+    # Btw kalau di database lu ada kolom notes/catatan POD, bisa dimasukkin gini:
+    # if data.notes:
+    #     order.admin_notes = data.notes
+
+    db.commit()
+    
+    return {
+        "status": "success", 
+        "message": f"POD untuk DO {order_id} BERHASIL DISETUJUI!", 
+        "order_id": order_id, 
+        "new_status": order.status.value
+    }
+
+
+@router.put("/orders/{order_id}/pod/reject", response_model=schemas.PodVerificationResponse)
+def reject_pod(
+    order_id: str, 
+    data: schemas.PodRejectRequest, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(require_role("admin_pod"))
+):
+    # Cari orderannya
+    order = db.query(models.DeliveryOrder).filter(models.DeliveryOrder.order_id == order_id).first()
+    if not order: 
+        raise HTTPException(status_code=404, detail="Order tidak ditemukan")
+    
+    # Validasi
+    if order.status != models.DOStatus.delivered_pod_uploaded:
+        raise HTTPException(status_code=400, detail=f"Tidak bisa reject POD. Status DO saat ini: {order.status.value}")
+
+    # Ubah status jadi ditolak, biar supir disuruh foto ulang
+    order.status = models.DOStatus.delivered_pod_rejected
+    
+    # Simpan alasan kenapa ditolak (kalau tabel DO lu ada field rejection_reason, dipake di sini)
+    # order.rejection_reason = data.reason
+    
+    db.commit()
+    
+    return {
+        "status": "success", 
+        "message": f"POD untuk DO {order_id} DITOLAK! Alasan: {data.reason}", 
+        "order_id": order_id, 
+        "new_status": order.status.value
     }

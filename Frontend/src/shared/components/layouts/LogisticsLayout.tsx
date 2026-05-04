@@ -1,9 +1,13 @@
+// src/shared/components/layouts/LogisticsLayout.tsx
 import { Outlet } from 'react-router-dom';
 import Sidebar from '../Sidebar';
+import Header from '../Header'; 
 import { useSidebar } from '../../../context/SidebarContext';
+import { useHeaderStore } from '../../../store/useHeaderStore'; // 🌟 IMPORT STORE
 
 export default function LogisticsLayout() {
     const { isMobileMenuOpen, toggleMobileMenu, closeMobileMenu } = useSidebar();
+    const { title } = useHeaderStore(); // 🌟 TARIK TITLE DARI STORE
 
     return (
         <div className="flex h-screen overflow-hidden relative bg-main-bg dark:bg-[#0a0a0a] text-slate-900 dark:text-slate-100 antialiased font-display transition-colors">
@@ -37,6 +41,12 @@ export default function LogisticsLayout() {
                     </button>
                 </header>
 
+                {/* 🌟 HEADER GLOBAL (Ngambil title dari Zustand) */}
+                <div className="hidden lg:block z-10">
+                    <Header title={title} />
+                </div>
+
+                {/* MAIN CONTENT */}
                 <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#111111] transition-all duration-300 ease-in-out">
                     <Outlet />
                 </main>

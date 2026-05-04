@@ -1,3 +1,4 @@
+// src/shared/components/Sidebar.tsx
 import { useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useSidebar } from "../../context/SidebarContext";
@@ -10,26 +11,36 @@ export default function Sidebar() {
     const { isCollapsed, toggleSidebar, isMobileMenuOpen, closeMobileMenu } = useSidebar();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-    // 🌟 DATA MENU DENGAN SUB-MENU (Logic Sub-menu buat Manager)
+    // 🌟 DATA MENU DENGAN SUB-MENU 
     const menuItems = [
+        // --- MENU ADMIN DISTRIBUSI ---
         { to: "/logistik", icon: "dashboard", label: "Dashboard", end: true, roles: ['admin_distribusi'] },
-        { 
-            label: "Manager Logistik", 
-            icon: "monitoring", 
-            roles: ['manager_logistik'],
-            // 🌟 SUB-MENU HASIL TRANSPLANTASI DARI VERSI KOTOR
-            submenu: [
-                { to: "/manager/overview", label: "Overview", icon: "grid_view" },
-                { to: "/manager/return", label: "Return Performance", icon: "assignment_return" },
-                { to: "/manager/efficiency", label: "Logistics Efficiency", icon: "speed" },
-            ]
-        },
         { to: "/logistik/route-planning", icon: "map", label: "Route Planning", roles: ['admin_distribusi'] },
         { to: "/logistik/load-planner", icon: "conveyor_belt", label: "Load Planner", roles: ['admin_distribusi'] },
         { to: "/logistik/fleet", icon: "local_shipping", label: "Fleet Management", roles: ['admin_distribusi'] },
         { to: "/logistik/drivers", icon: "badge", label: "Driver List", roles: ['admin_distribusi'] },
         { to: "/logistik/customers", icon: "groups", label: "Customer Data", roles: ['admin_distribusi'] },
         { to: "/logistik/analytics", icon: "analytics", label: "Analytics", roles: ['admin_distribusi'] },
+        
+        // --- MENU MANAGER LOGISTIK ---
+        { 
+            label: "Manager Logistik", 
+            icon: "monitoring", 
+            roles: ['manager_logistik'],
+            submenu: [
+                { to: "/manager/overview", label: "Overview", icon: "grid_view" },
+                { to: "/manager/return", label: "Return Performance", icon: "assignment_return" },
+                { to: "/manager/efficiency", label: "Logistics Efficiency", icon: "speed" },
+            ]
+        },
+
+        // --- MENU ADMIN POD (Proof of Delivery) ---
+        // 🌟 FIX CTO: Akses Manager dicabut, sekarang murni cuma buat Admin POD!
+        { to: "/pod", icon: "receipt_long", label: "POD Verification", roles: ['admin_pod'] },
+
+        // --- MENU KASIR / FINANCE ---
+        // 🌟 FIX CTO: Akses Manager dicabut, sekarang murni cuma buat Kasir!
+        { to: "/finance", icon: "account_balance_wallet", label: "Finance & Expense", roles: ['kasir'] },
     ];
 
     return (
@@ -166,9 +177,23 @@ export default function Sidebar() {
                                 <button onClick={() => navigate('/manager')} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all ${role === 'manager_logistik' ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-slate-100 dark:hover:bg-white/5 font-medium'}`}>
                                     <div className="flex items-center gap-3">
                                         <span className="material-symbols-outlined text-xl">monitoring</span>
-                                        <span className="text-sm">Manager Logistik</span>
+                                        <span className="text-sm">Manager</span>
                                     </div>
                                     {role === 'manager_logistik' && <span className="material-symbols-outlined text-lg">check_circle</span>}
+                                </button>
+                                <button onClick={() => navigate('/pod')} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all ${role === 'admin_pod' ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-slate-100 dark:hover:bg-white/5 font-medium'}`}>
+                                    <div className="flex items-center gap-3">
+                                        <span className="material-symbols-outlined text-xl">receipt_long</span>
+                                        <span className="text-sm">Admin POD</span>
+                                    </div>
+                                    {role === 'admin_pod' && <span className="material-symbols-outlined text-lg">check_circle</span>}
+                                </button>
+                                <button onClick={() => navigate('/finance')} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all ${role === 'kasir' ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-slate-100 dark:hover:bg-white/5 font-medium'}`}>
+                                    <div className="flex items-center gap-3">
+                                        <span className="material-symbols-outlined text-xl">account_balance_wallet</span>
+                                        <span className="text-sm">Kasir</span>
+                                    </div>
+                                    {role === 'kasir' && <span className="material-symbols-outlined text-lg">check_circle</span>}
                                 </button>
                             </div>
                         </div>
