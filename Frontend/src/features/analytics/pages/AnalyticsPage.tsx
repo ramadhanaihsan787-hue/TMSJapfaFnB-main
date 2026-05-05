@@ -2,6 +2,7 @@
 import { useEffect } from 'react';
 import { useAnalytics } from '../hooks';
 import { useDateRange } from '../../../context/DateRangeContext';
+import { toast } from 'sonner';
 
 import {
     KPICards,
@@ -16,7 +17,7 @@ export default function AnalyticsPage() {
     const {
         setStartDate,
         setEndDate,
-        handleExport,
+        // handleExport, <-- KITA MATIIN FUNGSI PALSU INI
         kpiData,
         summaryLoading,
         fleetData,
@@ -34,15 +35,49 @@ export default function AnalyticsPage() {
         setEndDate(globalEnd);
     }, [globalStart, globalEnd, setStartDate, setEndDate]);
 
-    // 🌟 KITA BUANG DIV h-screen & Header DARI SINI, BIAR LAYOUT INDUK YANG NGURUSIN
+    // 🌟 SUNTIKAN CTO: FUNGSI EXPORT EXCEL NYATA (FR-6.5)
+    const handleRealExport = async () => {
+        toast.loading("Mempersiapkan file Excel...", { id: "export-toast" });
+
+        try {
+            const token = localStorage.getItem('token');
+            // Pastiin URL ini nembak ke endpoint yang tadi kita bikin di analytics.py
+            const response = await fetch(`http://localhost:8000/api/analytics/export?format=xlsx&startDate=${globalStart}&endDate=${globalEnd}`, {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!response.ok) throw new Error("Gagal download file");
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `JAPFA_Logistics_Report_${globalStart}_to_${globalEnd}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            
+            a.remove();
+            window.URL.revokeObjectURL(url);
+
+            toast.success("Excel Report berhasil diunduh!", { id: "export-toast" });
+        } catch (error) {
+            console.error(error);
+            toast.error("Gagal membuat laporan Excel", { id: "export-toast" });
+        }
+    };
+
     return (
         <div className="flex flex-col w-full h-full"> 
             
-            {/* TOMBOL EXPORT (Tetap dipertahankan) */}
+            {/* 🌟 TOMBOL EXPORT UDAH AKTIF! */}
             <div className="px-4 md:px-8 pt-6 pb-2 flex justify-end">
-                <button onClick={handleExport} className="flex items-center gap-2 bg-gradient-to-r from-[#994700] to-[#FF7A00] text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-primary/20 hover:scale-105 transition-all active:scale-95">
+                <button 
+                    onClick={handleRealExport} 
+                    className="flex items-center gap-2 bg-gradient-to-r from-[#994700] to-[#FF7A00] text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-primary/20 hover:scale-105 transition-all active:scale-95"
+                >
                     <span className="material-symbols-outlined text-[18px]">download</span>
-                    Export PDF/Excel
+                    Export Excel Data
                 </button>
             </div>
 

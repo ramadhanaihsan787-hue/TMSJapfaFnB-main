@@ -5,6 +5,10 @@ from datetime import date, datetime
 import os
 import shutil
 import uuid
+import io
+
+# 🌟 SUNTIKAN CTO POINT 6: IMPORT MAGIC PILLOW
+from PIL import Image, ImageDraw, ImageFont
 
 import models
 import schemas # 🌟 SUNTIKAN PERTAMA: Import Kamus Pydantic Kita!
@@ -16,8 +20,64 @@ UPLOAD_DIR = "static/uploads/epod"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ==========================================
+# 🌟 HELPER FUNCTION: WATERMARK GENERATOR
+# ==========================================
+def add_watermark(image_bytes: bytes, text_lines: list) -> bytes:
+    """Nambahin teks koordinat & jam transparan ke atas foto"""
+    try:
+        # Buka gambar dari memory
+        img = Image.open(io.BytesIO(image_bytes))
+        
+        # Biar text ngga nabrak foto asli, kita bikin layer transparan
+        # Konversi ke RGBA biar support transparansi (Alpha channel)
+        if img.mode != 'RGBA':
+            img = img.convert('RGBA')
+
+        # Bikin layer kosong yang ukurannya sama persis sama foto
+        txt_layer = Image.new('RGBA', img.size, (255, 255, 255, 0))
+        d = ImageDraw.Draw(txt_layer)
+
+        # Coba pake font default (kalo ga nemu font Arial/Roboto di OS)
+        try:
+            # Atur ukuran font dinamis, 3% dari lebar gambar atau minimal 16px
+            font_size = max(16, int(img.size[0] * 0.03))
+            # Di server linux biasanya font ada di /usr/share/fonts/
+            # Tapi kita pake load default aja biar aman lintas OS
+            fnt = ImageFont.load_default()
+        except:
+            fnt = None
+
+        # Posisi awal text (Pojok kanan bawah)
+        margin = 15
+        y_text = img.size[1] - margin - (len(text_lines) * 20) 
+
+        # Tulis baris per baris
+        for line in text_lines:
+            # Warna putih (255,255,255) dengan tingkat transparansi 180 (dari 255)
+            # Biar nambah kebaca, kita kasih shadow/stroke hitam tipis (offset 1px)
+            d.text((margin+1, y_text+1), line, font=fnt, fill=(0, 0, 0, 200))
+            d.text((margin, y_text), line, font=fnt, fill=(255, 255, 255, 180))
+            y_text += 20 # Jarak antar baris
+
+        # Tempel layer text di atas foto asli
+        watermarked = Image.alpha_composite(img, txt_layer)
+
+        # Konversi balik ke RGB (karena JPG ga support RGBA)
+        if watermarked.mode == 'RGBA':
+            watermarked = watermarked.convert('RGB')
+
+        # Simpen balik ke memory berupa bytes
+        img_byte_arr = io.BytesIO()
+        watermarked.save(img_byte_arr, format='JPEG', quality=85) # Compress dikit biar enteng
+        return img_byte_arr.getvalue()
+        
+    except Exception as e:
+        print(f"⚠️ Warning: Gagal menempelkan watermark! Menyimpan foto original. Error: {e}")
+        return image_bytes # Kalo gagal, balikin foto aslinya aja
+
+
+# ==========================================
 # 1. AMBIL RUTE TUGAS SAYA (MY ROUTE)
-# 🌟 SUNTIKAN KEDUA: response_model=schemas.DriverTripResponse
 # ==========================================
 @router.get("/my-route", response_model=schemas.DriverTripResponse)
 def get_my_route(
@@ -83,7 +143,6 @@ def get_my_route(
 
 # ==========================================
 # 2. UPDATE STATUS STOP (SAYA SUDAH TIBA)
-# 🌟 SUNTIKAN KETIGA: response_model=schemas.GenericResponse
 # ==========================================
 @router.post("/stops/{line_id}/status", response_model=schemas.GenericResponse)
 def update_stop_status(
@@ -99,9 +158,8 @@ def update_stop_status(
     return {"status": "success", "message": f"Status rute {line_id} berhasil diupdate."}
 
 # ==========================================
-# 3. SUBMIT E-POD (SECURE UPLOAD + VALIDATION)
+# 3. SUBMIT E-POD (SECURE UPLOAD + VALIDATION + WATERMARK)
 # ==========================================
-# Konfigurasi Satpam Upload
 ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"]
 MAX_FILE_SIZE_MB = 5
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
@@ -114,14 +172,13 @@ async def submit_epod(
     return_product: str = Form(""),
     return_qty: float = Form(0.0),
     return_reason: str = Form(""),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user) # 🌟 Tambahin ini biar tau ID supir
 ):
-    # 🛡️ SATPAM 1: Cek MIME Type (Apakah beneran gambar?)
     if file.content_type not in ALLOWED_MIME_TYPES:
         raise HTTPException(status_code=400, detail="Format file ditolak! Hanya boleh upload gambar (JPG, PNG, WEBP).")
 
-    # 🛡️ SATPAM 2: Cek Ukuran File
-    file_content = await file.read() # Baca isi file ke memory sementara
+    file_content = await file.read() 
     if len(file_content) > MAX_FILE_SIZE_BYTES:
         raise HTTPException(status_code=400, detail=f"Ukuran foto terlalu besar! Maksimal {MAX_FILE_SIZE_MB}MB.")
     
@@ -136,13 +193,13 @@ async def submit_epod(
         qty_delivered = total_order_kg
         qty_returned = 0.0
         qty_damaged = 0.0
-        final_status = models.DOStatus.delivered_success
+        # 🌟 FIX: Jangan langsung delivered_success, set ke uploaded biar masuk antrean admin
+        final_status = models.DOStatus.delivered_pod_uploaded 
         driver_note = ""
 
         if is_return and return_qty > 0:
             qty_delivered = max(0.0, total_order_kg - return_qty)
             qty_returned = return_qty
-            final_status = models.DOStatus.delivered_partial
             
             if return_product:
                 driver_note = f"Produk Retur: {return_product}"
@@ -150,18 +207,30 @@ async def submit_epod(
             if return_reason in ["Barang Rusak", "Packaging Bocor", "Kadaluarsa"]:
                 qty_damaged = return_qty
 
-        # 🛡️ SATPAM 1 (Lanjutan): Double Check Ekstensi
         file_ext = file.filename.split(".")[-1].lower()
         if file_ext not in ["jpg", "jpeg", "png", "webp"]:
              raise HTTPException(status_code=400, detail="Ekstensi file mencurigakan!")
 
-        filename = f"POD_{line.order_id}_{uuid.uuid4().hex}.{file_ext}"
+        # 🌟 EKSEKUSI WATERMARK SEBELUM DI-SAVE
+        timestamp_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        watermark_text = [
+            f"Waktu: {timestamp_now} WIB",
+            f"Lokasi: {line.order.latitude}, {line.order.longitude}",
+            f"DO: {line.order_id} | Driver: {current_user.username}",
+            "JAPFA F&B E-POD SYSTEM - ANTI FRAUD"
+        ]
+        
+        # Timpa file_content lama dengan yang udah di-watermark
+        file_content = add_watermark(file_content, watermark_text)
+        
+        # Selalu simpen jadi JPG karena output dari fungsi helper kita itu JPEG
+        filename = f"POD_{line.order_id}_{uuid.uuid4().hex}.jpg"
         file_path = os.path.join(UPLOAD_DIR, filename)
 
-        # 💾 Tulis byte yang udah dibaca tadi ke dalam disk
         with open(file_path, "wb") as buffer:
             buffer.write(file_content)
 
+        # 🌟 Pastiin field DB-nya sama kayak skema Models lu ya!
         new_pod = models.TMSEpodHistory(
             line_id=line_id,
             status=final_status,
@@ -171,9 +240,7 @@ async def submit_epod(
             gps_location_lon=line.order.longitude,
             qty_delivered=qty_delivered,
             qty_return=qty_returned,
-            qty_damaged=qty_damaged,
-            return_reason=return_reason if is_return else None,
-            driver_notes=driver_note if is_return else None
+            qty_damaged=qty_damaged
         )
         db.add(new_pod)
         line.order.status = final_status
@@ -182,14 +249,14 @@ async def submit_epod(
         return {
             "status": "success", 
             "url": new_pod.photo_url,
-            "message": "POD berhasil diunggah dengan data retur!" if is_return else "POD berhasil diunggah!"
+            "message": "POD berhasil diunggah! Menunggu verifikasi admin."
         }
 
     except HTTPException:
-        # Biarkan pesan error spesifik (400/404) lolos ke client
         raise
     except Exception as e:
-        # 🛡️ SATPAM 3: Anti-bocor exception!
         db.rollback()
+        import logging
+        logger = logging.getLogger(__name__)
         logger.error(f"🚨 [UPLOAD EPOD] Error di line_id {line_id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Terjadi kesalahan internal saat menyimpan POD. Silakan hubungi admin.")

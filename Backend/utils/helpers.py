@@ -4,7 +4,8 @@ Helpers module - General utility helper functions
 import math
 from datetime import time as datetime_time
 from core.constants import EARTH_RADIUS_METERS, MALL_KEYWORDS
-
+import json
+from models import SystemAuditLog
 
 def calculate_haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """
@@ -140,3 +141,17 @@ def minutes_to_time_str(minutes: int) -> str:
     h = int((minutes // 60) % 24)
     m = int(minutes % 60)
     return f"{h:02d}:{m:02d}"
+
+def log_audit_action(db, user_id, action, entity_type, entity_id, old_data=None, new_data=None, ip_address=None):
+    """Fungsi helper untuk nyatet jejak digital ke tabel SystemAuditLog"""
+    new_log = SystemAuditLog(
+        user_id=user_id,
+        action=action,
+        entity_type=entity_type,
+        entity_id=str(entity_id),
+        old_values=json.dumps(old_data) if old_data else None,
+        new_values=json.dumps(new_data) if new_data else None,
+        ip_address=ip_address
+    )
+    db.add(new_log)
+    db.commit()

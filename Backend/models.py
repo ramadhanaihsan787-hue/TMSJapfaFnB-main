@@ -289,3 +289,26 @@ class OperationalExpense(Base):
     # 🌟 FIX CTO: Bikin Jembatan Relasi ke Tabel Lain
     vehicle = relationship("FleetVehicle", backref="expenses")
     driver = relationship("HRDriver", backref="expenses")
+
+# ==========================================
+# 10. SYSTEM AUDIT LOG (LEGAL COMPLIANCE)
+# ==========================================
+# 🌟 FIX CTO: INI TABEL BARUNYA!
+class SystemAuditLog(Base):
+    __tablename__ = "system_audit_logs"
+    __table_args__ = {'extend_existing': True}
+    
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    timestamp = Column(DateTime, default=datetime.datetime.now)
+    
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True) # Null = Kalo system/cron yang jalanin
+    action = Column(String(100), index=True) # Contoh: "APPROVE_POD", "DELETE_EXPENSE"
+    entity_type = Column(String(100)) # Contoh: "DeliveryOrder", "OperationalExpense"
+    entity_id = Column(String(100)) # ID dari data yang diubah
+    
+    old_values = Column(Text, nullable=True) # String JSON dari data sebelum diubah
+    new_values = Column(Text, nullable=True) # String JSON dari data sesudah diubah
+    
+    ip_address = Column(String(50), nullable=True)
+    
+    user = relationship("User", backref="audit_trails")

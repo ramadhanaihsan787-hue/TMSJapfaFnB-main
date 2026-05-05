@@ -1,7 +1,9 @@
 absl-py==2.4.0
+alembic==1.14.1
 annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.12.1
+apscheduler==3.10.4
 bcrypt==4.0.1
 certifi==2026.2.25
 cffi==2.0.0
@@ -23,6 +25,7 @@ openpyxl==3.1.5
 ortools==9.15.6755
 pandas==3.0.0
 passlib==1.7.4
+Pillow==10.4.0
 protobuf==6.33.5
 psycopg2-binary==2.9.11
 py3dbp==1.1.2
@@ -47,4 +50,3 @@ typing_extensions==4.15.0
 tzdata==2025.3
 urllib3==2.6.3
 uvicorn==0.40.0
-alembic==1.14.1

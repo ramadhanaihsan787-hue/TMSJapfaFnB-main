@@ -7,12 +7,16 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.utils import get_openapi
+from contextlib import asynccontextmanager
 import os
 
 # 🌟 IMPORT SATPAM ANTI-DDoS (SLOWAPI)
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+
+# 🌟 FIX CTO POINT 5: CRON SERVICE IMPORT (Supaya main.py bersih)
+from services.cron_service import start_system_scheduler
 
 # Core & Config
 from core.config import settings
@@ -40,50 +44,58 @@ from routers import (
 # ==========================================
 Base.metadata.create_all(bind=engine)
 
+
+# ==========================================
+# 🌟 SUNTIKAN CTO POINT 5: LIFESPAN
+# ==========================================
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- STARTUP EVENT ---
+    # Nyalain robot background dari file services/cron_service.py
+    scheduler = start_system_scheduler()
+    
+    yield # <-- Aplikasi FastAPI jalan selama posisi ini
+    
+    # --- SHUTDOWN EVENT ---
+    scheduler.shutdown()
+    print("🛑 [SYSTEM] Robot Background Worker dimatikan.")
+
+
 # ==========================================
 # 2. INITIALIZE APP & RATE LIMITER (SATPAM)
 # ==========================================
-# Satpam bakal nyatet IP Address. Default: 100 request per menit per IP
 limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 
 app = FastAPI(
     title=settings.APP_NAME,
     description=settings.APP_DESCRIPTION,
     version=settings.APP_VERSION,
+    lifespan=lifespan # 🌟 TEMPELIN LIFESPAN DI SINI
 )
 
-# Daftarin Satpam ke dalem aplikasi
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-# Pasang Jaring Pengaman Global
 setup_exception_handlers(app)
 
 # ==========================================
 # 3. MIDDLEWARE (CORS) & STATIC FILES
 # ==========================================
-# 🌟 FIX SECURITY: Jangan pake "*". Daftarin alamat Frontend lu!
-# Tambahin port lain kalau lu pake Vite (5173) atau IP Local LAN HP Supir.
 ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:5173", 
     "http://127.0.0.1:5173",
-    # "https://tms-japfa.com", # Buka komen ini kalau udah naik ke server asli
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS, 
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], # Jangan kasih "*", definisikan jelas!
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], 
     allow_headers=["*"],
 )
 
-# Pastikan folder static ada biar ngga error pas mount
 os.makedirs("static/uploads/epod", exist_ok=True)
-
-# Mount folder static & uploads
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
@@ -130,7 +142,7 @@ app.include_router(finance_router.router, tags=["Finance & Expenses"])
 # 6. SYSTEM ENDPOINTS
 # ==========================================
 @app.get("/health", tags=["System"])
-@limiter.limit("5/minute") # 🌟 CONTOH: Endpoint ini cuma boleh dipanggil 5x per menit!
+@limiter.limit("5/minute")
 def health_check(request: Request):
     return {
         "status": "healthy",

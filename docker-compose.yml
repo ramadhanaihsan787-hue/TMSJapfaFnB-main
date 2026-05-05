@@ -10,7 +10,8 @@ services:
     environment:
       POSTGRES_DB: tms_japfa
       POSTGRES_USER: japfa_user
-      POSTGRES_PASSWORD: japfa_password_change_me  # ⚠️ GANTI INI DI PRODUCTION!
+      # 🌟 FIX CTO: Biar makin aman, password DB juga mending tarik dari .env nanti!
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-japfa_password_change_me} 
       TZ: 'Asia/Jakarta'
     ports:
       - "5432:5432"
@@ -37,21 +38,21 @@ services:
         condition: service_healthy
     environment:
       # 🌟 Database Configuration
-      DATABASE_URL: postgresql://japfa_user:japfa_password_change_me@postgres:5432/tms_japfa
+      DATABASE_URL: postgresql://japfa_user:${POSTGRES_PASSWORD:-japfa_password_change_me}@postgres:5432/tms_japfa
       
-      # 🌟 JWT & Security
-      SECRET_KEY: your-super-secret-key-change-this-in-production-12345
+      # 🌟 FIX CTO POINT 1: JWT & Security ditarik dari Host OS / .env file!
+      SECRET_KEY: ${SECRET_KEY}
       ALGORITHM: HS256
-      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      ACCESS_TOKEN_EXPIRE_MINUTES: 120 # Ngikutin yang tadi kita ganti 2 jam
       
       # 🌟 Application
       APP_NAME: "TMS JAPFA - AI Engine"
       APP_VERSION: "2.0.0"
       APP_DESCRIPTION: "Transport Management System dengan CVRPTW Optimization"
-      DEBUG: "false"  # Set ke "true" hanya untuk development
+      DEBUG: "false"
       
       # 🌟 API Keys
-      TOMTOM_API_KEY: your-tomtom-api-key-here
+      TOMTOM_API_KEY: ${TOMTOM_API_KEY:-your-tomtom-api-key-here}
       
       # 🌟 VRP Configuration
       depo_lat: -6.2234
@@ -80,7 +81,11 @@ services:
       - ./Backend:/app
       - ./Backend/uploads:/app/uploads
       - ./Backend/route_geometries:/app/route_geometries
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    
+    # 🌟 FIX CTO POINT 1: Hapus --reload buat Production. 
+    # (Opsional) Kalo mau makin ngebut di server, ntar lu tambahin: --workers 4
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=5)"]
       interval: 30s
@@ -97,18 +102,11 @@ services:
     build:
       context: ./Frontend
       dockerfile: Dockerfile
-      # Untuk development, gunakan target builder atau development image
       target: builder
     container_name: tms-japfa-web
-    # Atau uncomment untuk development dengan hot reload:
-    # image: node:20-alpine
-    # command: npm run dev -- --host
-    # volumes:
-    #   - ./Frontend:/app
-    #   - /app/node_modules
     environment:
       VITE_API_URL: "http://localhost:8000"
-      NODE_ENV: "development"
+      NODE_ENV: "production" # 🌟 Sekalian dibikin production mode
     ports:
       - "5173:5173"
     depends_on:
@@ -118,7 +116,7 @@ services:
     restart: unless-stopped
 
   # ==========================================
-  # NGINX - Reverse Proxy (Optional, untuk production-like setup)
+  # NGINX - Reverse Proxy
   # ==========================================
   nginx:
     image: nginx:alpine
@@ -135,49 +133,15 @@ services:
     networks:
       - tms-network
     restart: unless-stopped
-    profiles: ["production"]  # Only enable jika ingin production-like setup
+    profiles: ["production"]
 
 # ==========================================
-# NETWORKS
+# NETWORKS & VOLUMES
 # ==========================================
 networks:
   tms-network:
     driver: bridge
 
-# ==========================================
-# VOLUMES
-# ==========================================
 volumes:
   postgres_data:
     driver: local
-
-# ==========================================
-# USAGE
-# ==========================================
-# 
-# Development dengan auto-reload:
-#   docker-compose up -d
-#
-# Backend logs:
-#   docker-compose logs -f backend
-#
-# Frontend logs:
-#   docker-compose logs -f frontend
-#
-# Stop all:
-#   docker-compose down
-#
-# Remove data (WARNING!):
-#   docker-compose down -v
-#
-# Production-like (dengan Nginx):
-#   docker-compose --profile production up -d
-#
-# Database management:
-#   docker-compose exec postgres psql -U japfa_user -d tms_japfa
-#
-# Backend migrations (if needed):
-#   docker-compose exec backend alembic upgrade head
-#
-# Frontend build:
-#   docker-compose exec frontend npm run build

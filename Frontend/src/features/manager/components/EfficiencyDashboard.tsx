@@ -2,9 +2,42 @@ import { useState, useEffect } from 'react';
 import KPICard from './ManagerKPICards';
 import { Download, Search, AlertCircle, Gauge } from 'lucide-react';
 import { api } from '../../../shared/services/apiClient';
+import { toast } from 'sonner';
+import { useDateRange } from '../../../context/DateRangeContext';
 
 export default function EfficiencyDashboard() {
     const [isLoading, setIsLoading] = useState(true);
+    const { startDate, endDate } = useDateRange();
+
+    // 🌟 FUNGSI EXPORT UDAH AMAN DI SINI
+    const handleExport = async () => {
+        toast.loading("Mempersiapkan file Excel...", { id: "export-efficiency" });
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`http://localhost:8000/api/analytics/export?format=xlsx&startDate=${startDate}&endDate=${endDate}`, {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!response.ok) throw new Error("Gagal download file");
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `JAPFA_Efficiency_Report_${startDate}_to_${endDate}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            
+            a.remove();
+            window.URL.revokeObjectURL(url);
+
+            toast.success("Excel Report berhasil diunduh!", { id: "export-efficiency" });
+        } catch (error) {
+            console.error(error);
+            toast.error("Gagal membuat laporan Excel", { id: "export-efficiency" });
+        }
+    };
     
     // 🌟 STATE SEKARANG UDAH FULL NAMPUNG SEMUA GRAFIK!
     const [efficiencyData, setEfficiencyData] = useState<any>({
@@ -231,8 +264,12 @@ export default function EfficiencyDashboard() {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-japfa-orange transition-colors w-4 h-4" />
                             <input className="pl-10 pr-4 py-2.5 bg-white dark:bg-slate-950 border border-gray-200 dark:border-white/10 rounded-xl text-xs font-bold focus:ring-2 focus:ring-japfa-orange/20 focus:border-japfa-orange outline-none w-72 text-japfa-dark dark:text-white transition-all shadow-sm" placeholder="Search route, hub, or status..." type="text" />
                         </div>
-                        <button className="flex items-center gap-2 px-5 py-2.5 bg-japfa-navy dark:bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-japfa-dark transition-all shadow-lg shadow-blue-500/20 active:scale-95">
-                            <Download className="w-4 h-4" /> EXPORT
+                        {/* 🌟 INI DIA TOMBOL EXPORT-NYA UDAH DIAMANIN */}
+                        <button 
+                            onClick={handleExport}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-japfa-navy dark:bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-japfa-dark transition-all shadow-lg shadow-blue-500/20 active:scale-95"
+                        >
+                            <Download className="w-4 h-4" /> EXPORT EXCEL
                         </button>
                     </div>
                 </div>
