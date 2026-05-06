@@ -95,17 +95,14 @@ def get_efficiency_dashboard(db: Session = Depends(get_db)):
     return {"status": "success", "data": data}
 
 # ==========================================
-# ENDPOINT 7: MONITORING ALERTS
+# ENDPOINT 7: MONITORING ALERTS (FIX CTO: REAL-TIME DB)
 # ==========================================
 @router.get("/monitoring-alerts")
-def get_monitoring_alerts():
+def get_monitoring_alerts(db: Session = Depends(get_db)):
+    data_alerts = analytics_service.get_realtime_alerts(db)
     return {
         "status": "success",
-        "data": [
-            { "title": "Route Congestion", "time": "2m ago", "desc": "Heavy traffic detected on Jakarta-Cikampek KM 42.", "icon": "report", "color": "border-red-500" },
-            { "title": "Fleet Delay", "time": "15m ago", "desc": "Unit B-9281-UFA delayed due to severe weather.", "icon": "warning", "color": "border-orange-500" },
-            { "title": "Cold Chain", "time": "1h ago", "desc": "Temp spike detected in Reefer-X45 container.", "icon": "ac_unit", "color": "border-red-500" }
-        ]
+        "data": data_alerts
     }
 
 # ==========================================

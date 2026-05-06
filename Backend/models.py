@@ -21,6 +21,9 @@ class DOStatus(enum.Enum):
     delivered_success = "DELIVERED_SUCCESS"
     delivered_partial = "DELIVERED_PARTIAL"
     billed = "BILLED"
+    # 🌟 FIX CTO: Sinkronisasi 100% dengan Dokumen SRS (State Machine)
+    cancelled = "CANCELLED"
+    failed = "FAILED"
 
 # ==========================================
 # 1. AUTENTIKASI & HR
@@ -55,13 +58,12 @@ class HRDriver(Base):
     route_plans = relationship("TMSRoutePlan", back_populates="driver")
 
 # ==========================================
-# 2. MASTER DATA ARMADA (FIXED!)
+# 2. MASTER DATA ARMADA
 # ==========================================
 class FleetVehicle(Base):
     __tablename__ = "fleet_vehicles"
     __table_args__ = {'extend_existing': True}
     
-    # 🌟 FIX 1: vehicle_id sekarang Integer konsisten
     vehicle_id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     license_plate = Column(String(20), unique=True, index=True)
     type = Column(String(50))
@@ -69,15 +71,14 @@ class FleetVehicle(Base):
     
     status = Column(String(20), default="Available")
     is_internal = Column(Boolean, default=True)
-    current_km = Column(Integer, default=0)
     
-    # 🌟 FIX 2: Tambah dimensi box untuk 3D load planning
-    box_length_cm = Column(Integer, default=400)   # Panjang box (cm)
-    box_width_cm = Column(Integer, default=200)    # Lebar box (cm)
-    box_height_cm = Column(Integer, default=200)   # Tinggi box (cm)
+    current_km = Column(Integer, default=0) 
+    
+    box_length_cm = Column(Integer, default=400)   
+    box_width_cm = Column(Integer, default=200)    
+    box_height_cm = Column(Integer, default=200)   
     
     route_plans = relationship("TMSRoutePlan", back_populates="vehicle")
-    fuel_logs = relationship("FuelLog", back_populates="vehicle")
 
     default_driver_id = Column(Integer, ForeignKey("hr_drivers.driver_id"), nullable=True)
     default_driver = relationship("HRDriver", foreign_keys=[default_driver_id])
@@ -86,9 +87,8 @@ class FleetVehicle(Base):
     co_driver = relationship("HRDriver", foreign_keys=[co_driver_id])
 
 # ==========================================
-# 3. MASTER CUSTOMERS (KONSOLIDASI!)
+# 3. MASTER CUSTOMERS
 # ==========================================
-# 🌟 FIX 3: HANYA SATU TABEL CUSTOMER
 class MasterCustomer(Base):
     __tablename__ = "master_customers"
     __table_args__ = {'extend_existing': True}
@@ -97,15 +97,14 @@ class MasterCustomer(Base):
     kode_customer = Column(String(50), unique=True, index=True)
     store_name = Column(String(100))
     
-    # Koordinat presisi tinggi
     latitude = Column(Numeric(10, 8), nullable=True)
     longitude = Column(Numeric(11, 8), nullable=True)
     
     address = Column(Text)
-    district = Column(String(100))  # 🌟 TAMBAHAN: Kecamatan/RT/RW
-    city = Column(String(100))      # 🌟 TAMBAHAN: Kota/Kabupaten
-    admin_name = Column(String(100)) # 🌟 TAMBAHAN: Nama admin toko
-    status = Column(String(20), default="Active") # 🌟 TAMBAHAN: Active/Inactive
+    district = Column(String(100))  
+    city = Column(String(100))      
+    admin_name = Column(String(100)) 
+    status = Column(String(20), default="Active") 
     
     orders = relationship("DeliveryOrder", back_populates="customer")
 
@@ -117,7 +116,7 @@ class DeliveryOrder(Base):
     __table_args__ = {'extend_existing': True}
     
     order_id = Column(String(50), primary_key=True)
-    customer_name = Column(String(255))
+    
     latitude = Column(Numeric(10, 8), nullable=True)
     longitude = Column(Numeric(11, 8), nullable=True)
     weight_total = Column(Float)
@@ -190,50 +189,30 @@ class TMSEpodHistory(Base):
     gps_location_lat = Column(Numeric(10, 8))
     gps_location_lon = Column(Numeric(11, 8))
     
-    qty_delivered = Column(Float, default=0.0) # Berapa KG yang nyampe ke toko
-    qty_return = Column(Float, default=0.0)    # Berapa KG yang ditolak toko
-    qty_damaged = Column(Float, default=0.0)   # Berapa KG yang rusak
+    qty_delivered = Column(Float, default=0.0)
+    qty_return = Column(Float, default=0.0)    
+    qty_damaged = Column(Float, default=0.0)   
+    
+    return_reason = Column(String(100), nullable=True)
+    driver_notes = Column(Text, nullable=True)
     
     route_line = relationship("TMSRouteLine", back_populates="epod")
 
 # ==========================================
-# 7. FUEL LOG (FIXED!)
+# 7. SYSTEM SETTINGS
 # ==========================================
-class FuelLog(Base):
-    __tablename__ = "fuel_logs"
-    __table_args__ = {'extend_existing': True}
-    
-    log_id = Column(Integer, primary_key=True, autoincrement=True)
-    # 🌟 FIX 5: FK sekarang Integer (konsisten dengan FleetVehicle)
-    vehicle_id = Column(Integer, ForeignKey("fleet_vehicles.vehicle_id"))
-    date_logged = Column(Date, default=datetime.date.today)
-    km_awal = Column(Integer)
-    km_akhir = Column(Integer)
-    liters = Column(Float)
-    cost_rp = Column(Float)
-    station_name = Column(String(100))
-    
-    vehicle = relationship("FleetVehicle", back_populates="fuel_logs")
-
-# ==========================================
-# 8. SYSTEM SETTINGS (BARU!)
-# ==========================================
-# 🌟 FIX 6: Model yang selama ini MISSING!
 class SystemSettings(Base):
     __tablename__ = "system_settings"
     __table_args__ = {'extend_existing': True}
     
-    # Single-row table (hanya 1 record)
     id = Column(Integer, primary_key=True, default=1)
     
-    # ===== VRP & Routing Engine =====
     vrp_start_time = Column(String(5), default="06:00")
     vrp_end_time = Column(String(5), default="20:00")
     vrp_base_drop_time_mins = Column(Integer, default=15)
-    vrp_var_drop_time_mins = Column(Integer, default=1)  # Per 10 KG
+    vrp_var_drop_time_mins = Column(Integer, default=1)  
     vrp_capacity_buffer_percent = Column(Integer, default=90)
     
-    # ===== Cost & Operations =====
     cost_fuel_per_liter = Column(Float, default=12500.0)
     cost_avg_km_per_liter = Column(Float, default=5.0)
     cost_driver_salary = Column(Float, default=4500000.0)
@@ -241,22 +220,19 @@ class SystemSettings(Base):
     depo_lat = Column(Float, default=-6.207356)
     depo_lon = Column(Float, default=106.479163)
     
-    # ===== Telematics & IoT =====
     api_gps_webhook = Column(String(255), nullable=True)
     api_temp_sensor = Column(String(255), nullable=True)
     sync_interval_sec = Column(Integer, default=60)
     
-    # ===== Alerts & Notifications =====
     alert_max_temp_celsius = Column(Float, default=4.0)
     alert_delay_mins = Column(Integer, default=30)
     
-    # 🌟 FIX 7: Tambahan untuk alert channel
     alert_channel_dashboard = Column(Boolean, default=True)
     alert_channel_email = Column(Boolean, default=True)
     alert_channel_whatsapp = Column(Boolean, default=False)
 
 # ==========================================
-# 9. FINANCE & OPERATIONAL EXPENSES (FIXED DENGAN FOREIGN KEY)
+# 8. FINANCE & OPERATIONAL EXPENSES
 # ==========================================
 class OperationalExpense(Base):
     __tablename__ = "operational_expenses"
@@ -266,7 +242,6 @@ class OperationalExpense(Base):
     time = Column(String(10))
     date = Column(Date)
     
-    # 🌟 FIX CTO: Jangan string manual! Pake Foreign Key!
     vehicle_id = Column(Integer, ForeignKey("fleet_vehicles.vehicle_id"), nullable=True)
     driver_id = Column(Integer, ForeignKey("hr_drivers.driver_id"), nullable=True)
     
@@ -286,14 +261,12 @@ class OperationalExpense(Base):
     created_at = Column(DateTime, default=datetime.datetime.now)
     updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
 
-    # 🌟 FIX CTO: Bikin Jembatan Relasi ke Tabel Lain
     vehicle = relationship("FleetVehicle", backref="expenses")
     driver = relationship("HRDriver", backref="expenses")
 
 # ==========================================
-# 10. SYSTEM AUDIT LOG (LEGAL COMPLIANCE)
+# 9. SYSTEM AUDIT LOG 
 # ==========================================
-# 🌟 FIX CTO: INI TABEL BARUNYA!
 class SystemAuditLog(Base):
     __tablename__ = "system_audit_logs"
     __table_args__ = {'extend_existing': True}
@@ -301,13 +274,13 @@ class SystemAuditLog(Base):
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     timestamp = Column(DateTime, default=datetime.datetime.now)
     
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True) # Null = Kalo system/cron yang jalanin
-    action = Column(String(100), index=True) # Contoh: "APPROVE_POD", "DELETE_EXPENSE"
-    entity_type = Column(String(100)) # Contoh: "DeliveryOrder", "OperationalExpense"
-    entity_id = Column(String(100)) # ID dari data yang diubah
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    action = Column(String(100), index=True) 
+    entity_type = Column(String(100)) 
+    entity_id = Column(String(100)) 
     
-    old_values = Column(Text, nullable=True) # String JSON dari data sebelum diubah
-    new_values = Column(Text, nullable=True) # String JSON dari data sesudah diubah
+    old_values = Column(Text, nullable=True) 
+    new_values = Column(Text, nullable=True) 
     
     ip_address = Column(String(50), nullable=True)
     
