@@ -10,7 +10,7 @@ import time
 import re
 
 import models
-import schemas # 🌟 SUNTIKAN PYDANTIC KITA!
+import schemas
 from dependencies import get_db, get_settings, get_current_user, require_role
 from utils.helpers import time_str_to_minutes
 
@@ -167,11 +167,29 @@ async def upload_sap_file(
         menit_ke_jamstr = lambda m: f"{m // 60:02d}:{m % 60:02d}"
 
         if data["lat"] and data["lon"]:
+            # 🌟 FIX CTO 1: Cari atau Bikin MasterCustomer dulu!
+            master = db.query(models.MasterCustomer).filter(models.MasterCustomer.kode_customer == data['kode']).first()
+            if not master:
+                master = models.MasterCustomer(
+                    kode_customer=data['kode'],
+                    store_name=data['nama'],
+                    latitude=data['lat'],
+                    longitude=data['lon']
+                )
+                db.add(master)
+                db.commit()
+                db.refresh(master)
+
+            # 🌟 FIX CTO 2: Pake store_id, BUKAN customer_name
             new_do = models.DeliveryOrder(
                 order_id=f"DO-{data['kode']}-{int(time.time())}-{count}",
-                customer_name=data['nama'], latitude=data['lat'], longitude=data['lon'],
-                weight_total=data['berat'], service_type=json.dumps(data['items']),
-                delivery_window_start=data['tw_start'], delivery_window_end=data['tw_end'],
+                store_id=master.store_id, 
+                latitude=data['lat'], 
+                longitude=data['lon'],
+                weight_total=data['berat'], 
+                service_type=json.dumps(data['items']),
+                delivery_window_start=data['tw_start'], 
+                delivery_window_end=data['tw_end'],
                 status=models.DOStatus.do_verified
             )
             db.add(new_do)
@@ -204,7 +222,9 @@ def update_time_window(
             h, m = map(int, data.jam_maksimal.split(":"))
             order.delivery_window_end = (h * 60) + m
         db.commit()
-        return {"message": f"Batas waktu {order.customer_name} diubah ke {data.jam_maksimal}", "order_id": order_id, "new_window_end": order.delivery_window_end}
+        # 🌟 FIX CTO: Tarik nama dari tabel relasi
+        toko_name = order.customer.store_name if order.customer else "Toko"
+        return {"message": f"Batas waktu {toko_name} diubah ke {data.jam_maksimal}", "order_id": order_id, "new_window_end": order.delivery_window_end}
     except Exception: raise HTTPException(status_code=400, detail="Format jam salah! Gunakan HH:MM")
 
 
@@ -242,7 +262,9 @@ def get_pending_orders(status: Optional[str] = None, db: Session = Depends(get_d
     return {
         "status": "success", "total": len(orders),
         "data": [{
-            "order_id": o.order_id, "customer_name": o.customer_name, "latitude": float(o.latitude) if o.latitude else None,
+            # 🌟 FIX CTO: Tarik nama dari tabel relasi
+            "order_id": o.order_id, "customer_name": o.customer.store_name if o.customer else "Unknown", 
+            "latitude": float(o.latitude) if o.latitude else None,
             "longitude": float(o.longitude) if o.longitude else None, "weight_total": o.weight_total,
             "delivery_window_start": o.delivery_window_start, "delivery_window_end": o.delivery_window_end,
             "status": o.status.value, "items": json.loads(o.service_type) if o.service_type and o.service_type.startswith('[') else []
@@ -251,7 +273,7 @@ def get_pending_orders(status: Optional[str] = None, db: Session = Depends(get_d
 
 
 # =================================================================================
-# 🌟 SUNTIKAN CTO: ENDPOINT BUAT APPROVE / REJECT E-POD (SESUAI REQUEST TEMEN LU)
+# 🌟 SUNTIKAN CTO: ENDPOINT BUAT APPROVE / REJECT E-POD (UDAH DISESUAIKAN SRS)
 # =================================================================================
 
 @router.put("/orders/{order_id}/pod/approve", response_model=schemas.PodVerificationResponse)
@@ -261,22 +283,17 @@ def approve_pod(
     db: Session = Depends(get_db), 
     current_user: models.User = Depends(require_role("admin_pod"))
 ):
-    # Cari orderannya
     order = db.query(models.DeliveryOrder).filter(models.DeliveryOrder.order_id == order_id).first()
     if not order: 
         raise HTTPException(status_code=404, detail="Order tidak ditemukan")
     
-    # Validasi: POD cuma bisa di-approve kalau statusnya lagi nunggu verifikasi atau udah di-upload supir
-    # Asumsi: Driver udah upload jadi statusnya delivered_pod_uploaded
-    if order.status != models.DOStatus.delivered_pod_uploaded:
+    # 🌟 FIX CTO: Cek status sesuai DB (DELIVERED_SUCCESS atau DELIVERED_PARTIAL)
+    valid_statuses = [models.DOStatus.delivered_success, models.DOStatus.delivered_partial]
+    if order.status not in valid_statuses:
         raise HTTPException(status_code=400, detail=f"Tidak bisa approve POD. Status DO saat ini: {order.status.value}")
 
-    # Ubah status jadi selesai (POD valid)
-    order.status = models.DOStatus.delivered_pod_verified
-    
-    # Btw kalau di database lu ada kolom notes/catatan POD, bisa dimasukkin gini:
-    # if data.notes:
-    #     order.admin_notes = data.notes
+    # 🌟 FIX CTO: Kalau POD valid, status akhir jadi BILLED (Siap ditagih Finance)
+    order.status = models.DOStatus.billed
 
     db.commit()
     
@@ -295,20 +312,17 @@ def reject_pod(
     db: Session = Depends(get_db), 
     current_user: models.User = Depends(require_role("admin_pod"))
 ):
-    # Cari orderannya
     order = db.query(models.DeliveryOrder).filter(models.DeliveryOrder.order_id == order_id).first()
     if not order: 
         raise HTTPException(status_code=404, detail="Order tidak ditemukan")
     
-    # Validasi
-    if order.status != models.DOStatus.delivered_pod_uploaded:
+    # 🌟 FIX CTO: Cek status
+    valid_statuses = [models.DOStatus.delivered_success, models.DOStatus.delivered_partial]
+    if order.status not in valid_statuses:
         raise HTTPException(status_code=400, detail=f"Tidak bisa reject POD. Status DO saat ini: {order.status.value}")
 
-    # Ubah status jadi ditolak, biar supir disuruh foto ulang
-    order.status = models.DOStatus.delivered_pod_rejected
-    
-    # Simpan alasan kenapa ditolak (kalau tabel DO lu ada field rejection_reason, dipake di sini)
-    # order.rejection_reason = data.reason
+    # 🌟 FIX CTO: Balikin ke status jalan biar muncul lagi di aplikasi HP Supir
+    order.status = models.DOStatus.do_assigned_to_route
     
     db.commit()
     

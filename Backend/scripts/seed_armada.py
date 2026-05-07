@@ -1,90 +1,113 @@
 """
-Seed Master - Populate vehicles, main drivers, and co-drivers dari 2 File CSV Berbeda
+Seed Master - Populate vehicles, main drivers, and co-drivers dari 2 File Excel Berbeda
+(SUDAH TERMASUK PEMBUATAN AKUN LOGIN USER UNTUK SUPIR)
 """
 import pandas as pd
 import logging
-from database import SessionLocal
-from sqlalchemy import text
-import models
 import sys
 import os
+from sqlalchemy import text
+from passlib.context import CryptContext
 
 # Biar bisa di-run darimana aja ngga nyasar
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# 🌟 SETUP LOGGER (Format simple khusus buat seeding)
+from database import SessionLocal
+import models
+
+# 🌟 SETUP LOGGER & PASSWORD HASHER
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def seed_master():
     db = SessionLocal()
     
-    # 1. BACA 2 FILE CSV SEKALIGUS
+    # 1. BACA 2 FILE EXCEL SEKALIGUS
     try:
-        logger.info("📊 Membaca 2 file CSV (Armada & Driver)...")
+        logger.info("📊 Membaca 2 file Excel (Armada & Driver)...")
+        # Ingat! armada mulai dari baris ke-3 (skiprows=2)
         df_armada = pd.read_excel('data/data_armada.xlsx', skiprows=2)
-        df_driver = pd.read_excel('data/data_driver.xlsx')
+        # Ambil spesifik sheet 'TLP SUPIR' biar ngga nyasar ke sheet Rencana Kirim
+        df_driver = pd.read_excel('data/data_driver.xlsx', sheet_name='TLP SUPIR')
     except Exception as e:
-        logger.error(f"❌ Gagal membaca file CSV: {e}")
+        logger.error(f"❌ Gagal membaca file Excel: {e}")
+        logger.info("💡 Pastikan file data_armada.xlsx dan data_driver.xlsx ada di dalam folder 'data/'")
         return
         
-    # 2. AUTO-MIGRATION KOLOM (Buat Jaga-jaga)
-    try:
-        db.execute(text("ALTER TABLE fleet_vehicles ADD COLUMN default_driver_id INTEGER;"))
-        db.commit()
-    except:
-        db.rollback()
-
-    try:
-        db.execute(text("ALTER TABLE fleet_vehicles ADD COLUMN co_driver_id INTEGER;"))
-        db.commit()
-        logger.info("🔧 Kolom Jodoh berhasil disiapkan di Database!")
-    except:
-        db.rollback()
-
-    # 3. HAPUS DATA LAMA
+    # 2. HAPUS DATA LAMA (BIAR NGGA DOUBLE)
     try:
         logger.info("🔄 Menghapus data master lama...")
         db.query(models.FleetVehicle).delete()
         db.query(models.HRDriver).delete()
+        # Hapus akun login yang role-nya driver
+        db.query(models.User).filter(models.User.role == models.UserRole.driver).delete()
         db.commit()
         
         logger.info("📝 Menyuntikkan Data Master JAPFA 2026...")
         logger.info("-" * 75)
         
-        # 4. PROSES DRIVER DULU & SIMPEN ID-NYA DI MEMORI
-        logger.info("👨‍✈️ 1. Merekrut Supir & Pengawal...")
+        # 3. PROSES DRIVER & BIKIN AKUN LOGIN
+        logger.info("👨‍✈️ 1. Merekrut Supir, Pengawal & Bikin Akun Login...")
         driver_mapping = {} 
         
         for index, row in df_driver.iterrows():
-            nopol = str(row['NO POLISI']).strip()
+            nopol = str(row.get('NO POLISI', '')).strip()
             if not nopol or nopol == 'nan':
                 continue
                 
-            nama_supir = str(row['SUPIR']).strip()
-            tlp_supir = str(row['No Tlp']).replace(" ", "").replace("-", "").strip()
+            nama_supir = str(row.get('SUPIR', '')).strip()
+            tlp_supir = str(row.get('No Tlp', '')).replace(" ", "").replace("-", "").strip()
             
-            nama_pengawal = str(row['Pengawal']).strip()
+            nama_pengawal = str(row.get('Pengawal', '')).strip()
+            # Di pandas, kalau ada 2 kolom bernama sama, kolom kedua dikasih '.1'
             tlp_pengawal = str(row.get('No Tlp.1', '')).replace(" ", "").replace("-", "").strip()
 
+            # --- A. BIKIN AKUN & PROFIL SUPIR UTAMA ---
+            username_utama = nopol.replace(" ", "").lower() # Contoh: b9514jxs
+            
+            user_utama = models.User(
+                username=username_utama,
+                hashed_password=pwd_context.hash("rahasia123"), # Password default: rahasia123
+                full_name=nama_supir if nama_supir != 'nan' else f"Supir {nopol}",
+                role=models.UserRole.driver
+            )
+            db.add(user_utama)
+            db.flush() # Ambil ID user-nya
+
             supir_utama = models.HRDriver(
-                name=nama_supir if nama_supir != 'nan' else f"Supir {nopol}",
+                user_id=user_utama.id,
+                name=user_utama.full_name,
                 phone=tlp_supir if tlp_supir != 'nan' else "-", 
                 status=True
             )
             db.add(supir_utama)
+            db.flush()
             
+            # --- B. BIKIN AKUN & PROFIL PENGAWAL (JIKA ADA) ---
             supir_pengawal = None
             if nama_pengawal and nama_pengawal != 'nan':
+                username_pengawal = f"{username_utama}_co" # Contoh: b9514jxs_co
+                
+                user_pengawal = models.User(
+                    username=username_pengawal,
+                    hashed_password=pwd_context.hash("rahasia123"),
+                    full_name=nama_pengawal,
+                    role=models.UserRole.driver
+                )
+                db.add(user_pengawal)
+                db.flush()
+
                 supir_pengawal = models.HRDriver(
+                    user_id=user_pengawal.id,
                     name=nama_pengawal,
                     phone=tlp_pengawal if tlp_pengawal != 'nan' else "-",
                     status=True
                 )
                 db.add(supir_pengawal)
+                db.flush()
             
-            db.flush() 
-            
+            # Simpan ID-nya buat dijodohin sama truk
             driver_mapping[nopol] = {
                 'utama': supir_utama.driver_id,
                 'pengawal': supir_pengawal.driver_id if supir_pengawal else None,
@@ -92,15 +115,15 @@ def seed_master():
                 'nama_pengawal': supir_pengawal.name if supir_pengawal else '-'
             }
 
-        # 5. PROSES ARMADA DAN JODOHKAN
+        # 4. PROSES ARMADA DAN JODOHKAN
         logger.info("\n🚚 2. Membeli Truk & Menjodohkan dengan Supir...")
         for index, row in df_armada.iterrows():
-            nopol = str(row['Nopol']).strip()
+            nopol = str(row.get('Nopol', '')).strip()
             if not nopol or nopol == 'nan':
                 continue
                 
-            tipe = str(row['Type']).strip()
-            kapasitas_raw = row['Kapasitas']
+            tipe = str(row.get('Type', '')).strip()
+            kapasitas_raw = row.get('Kapasitas')
             kapasitas = float(kapasitas_raw) if pd.notna(kapasitas_raw) else 2000.0
 
             mapping = driver_mapping.get(nopol, {})
@@ -118,11 +141,11 @@ def seed_master():
                 co_driver_id=id_pengawal
             )
             db.add(new_truck)
-            logger.info(f"✅ {nopol:12} | {tipe:6} | Utama: {mapping.get('nama_utama', '-'):15} | Pengawal: {mapping.get('nama_pengawal', '-')}")
+            logger.info(f"✅ {nopol:12} | {tipe:6} | Utama: {mapping.get('nama_utama', '-'):20} | Pengawal: {mapping.get('nama_pengawal', '-')}")
 
         db.commit()
         logger.info("-" * 75)
-        logger.info("🚀 SEEDING 2 FILE SELESAI! SEMUA DATA BERHASIL DIKAWINKAN!")
+        logger.info("🚀 SEEDING SELESAI! Semua supir siap login dengan password 'rahasia123'!")
         
     except Exception as e:
         logger.error(f"❌ Error Pas Seeding: {e}", exc_info=True)

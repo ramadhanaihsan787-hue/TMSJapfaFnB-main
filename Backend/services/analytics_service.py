@@ -286,7 +286,7 @@ def get_rejection_analysis(db: Session, start_date_str: str = None, end_date_str
     # 🌟 FIX CTO: Bantai Angka Dummy, Tarik data asli dari return_reason di EpodHistory
     query = db.query(
         models.TMSEpodHistory.return_reason,
-        func.count(models.TMSEpodHistory.id).label('count')
+        func.count(models.TMSEpodHistory.pod_id).label('count')
     ).filter(
         models.TMSEpodHistory.status == models.DOStatus.delivered_partial,
         models.TMSEpodHistory.return_reason != None

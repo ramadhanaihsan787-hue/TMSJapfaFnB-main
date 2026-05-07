@@ -7,6 +7,7 @@ from typing import Optional
 from datetime import date, datetime
 import requests
 import logging
+import uuid # 🌟 FIX CTO: Buat generate ID expense
 
 import models
 import schemas 
@@ -18,7 +19,6 @@ router = APIRouter(prefix="/api", tags=["Fleet Management"])
 
 live_telematics_cache = {}
 
-# (Model Pydantic Input biarin aja di file ini atau pindahin ke schemas nanti bebas)
 class OnCallFleetRequest(BaseModel):
     plate_number: str
     vehicle_type: str
@@ -42,7 +42,6 @@ def calculate_efficiency(distance_km: float, liters: float) -> float:
         return 0.0
     return round(distance_km / liters, 1)
 
-# 🌟 SUNTIKAN RESPONSE_MODEL
 @router.get("/fleet", response_model=schemas.FleetListResponse)
 def get_all_fleet(
     db: Session = Depends(get_db),
@@ -61,29 +60,24 @@ def get_all_fleet(
         current_load = float(route_today.total_weight) if route_today else 0.0
         load_pct = round((current_load / float(v.capacity_kg)) * 100, 1) if v.capacity_kg else 0
 
-        latest_fuel = db.query(models.FuelLog).filter(
-            models.FuelLog.vehicle_id == v.vehicle_id
-        ).order_by(desc(models.FuelLog.log_id)).first()
+        # 🌟 FIX CTO: Narik data bensin dari tabel OperationalExpense
+        expenses = db.query(models.OperationalExpense).filter(
+            models.OperationalExpense.vehicle_id == v.vehicle_id,
+            models.OperationalExpense.bbm > 0
+        ).order_by(desc(models.OperationalExpense.date)).all()
+
+        latest_fuel = expenses[0] if expenses else None
 
         fuel_history = []
         if latest_fuel:
-            logs = db.query(models.FuelLog).filter(
-                models.FuelLog.vehicle_id == v.vehicle_id
-            ).order_by(desc(models.FuelLog.log_id)).limit(5).all()
-
-            for fh in logs:
+            for fh in expenses[:5]:
                 fuel_history.append({
-                    "date": str(fh.date_logged),
-                    "km": (fh.km_akhir or 0) - (fh.km_awal or 0),
-                    "liters": float(fh.liters),
-                    "cost": f"Rp{fh.cost_rp:,.0f}",
-                    "station": fh.station_name
+                    "date": str(fh.date),
+                    "km": 0, # Udah ngga ditrack detail per struk
+                    "liters": 0.0,
+                    "cost": f"Rp{fh.bbm:,.0f}" if fh.bbm else "Rp0",
+                    "station": fh.notes or "-"
                 })
-
-        fuel_efficiency = 0.0
-        if latest_fuel:
-            jarak_tempuh = (latest_fuel.km_akhir or 0) - (latest_fuel.km_awal or 0)
-            fuel_efficiency = calculate_efficiency(jarak_tempuh, latest_fuel.liters or 0)
 
         result.append({
             "id": str(v.vehicle_id),
@@ -101,15 +95,14 @@ def get_all_fleet(
                 "width": v.box_width_cm or 200,
                 "height": v.box_height_cm or 200
             },
-            "lastFuelDate": str(latest_fuel.date_logged) if latest_fuel else "-",
-            "lastFuelCost": f"Rp{latest_fuel.cost_rp:,.0f}" if latest_fuel else "-",
-            "fuelEfficiency": fuel_efficiency, 
+            "lastFuelDate": str(latest_fuel.date) if latest_fuel else "-",
+            "lastFuelCost": f"Rp{latest_fuel.bbm:,.0f}" if latest_fuel and latest_fuel.bbm else "-",
+            "fuelEfficiency": 0.0, 
             "history": fuel_history
         })
 
     return {"status": "success", "data": result}
 
-# 🌟 SUNTIKAN RESPONSE_MODEL
 @router.post("/fleet/oncall", response_model=schemas.FleetActionResponse)
 def add_on_call_fleet(
     data: OnCallFleetRequest,
@@ -143,7 +136,6 @@ def add_on_call_fleet(
         "vehicle_id": new_vehicle.vehicle_id
     }
 
-# 🌟 SUNTIKAN RESPONSE_MODEL
 @router.put("/fleet/{truck_id}/status", response_model=schemas.FleetActionResponse)
 def update_truck_status(
     truck_id: int,
@@ -163,7 +155,6 @@ def update_truck_status(
 
     return {"message": f"Status truk {truck.license_plate} → {status_data.status}"}
 
-# 🌟 SUNTIKAN RESPONSE_MODEL
 @router.post("/fleet/{truck_id}/fuel", response_model=schemas.FleetActionResponse)
 def add_fuel_log(
     truck_id: int,
@@ -178,25 +169,28 @@ def add_fuel_log(
     if not truck:
         raise HTTPException(status_code=404, detail="Truk tidak ditemukan!")
 
+    # Update KM Truk
     truck.current_km = data.km_akhir
 
-    fuel_log = models.FuelLog(
+    # 🌟 FIX CTO: Simpan sebagai OperationalExpense (Jadi nyambung ke Modul Kasir!)
+    expense_id = f"EXP-{uuid.uuid4().hex[:8].upper()}"
+    new_expense = models.OperationalExpense(
+        id=expense_id,
+        time=datetime.now().strftime("%H:%M"),
+        date=date.today(),
         vehicle_id=truck_id,
-        date_logged=date.today(),
-        km_awal=data.km_awal,
-        km_akhir=data.km_akhir,
-        liters=data.liters,
-        cost_rp=data.cost_rp,
-        station_name=data.station_name
+        driver_id=truck.default_driver_id,
+        bbm=data.cost_rp,
+        total=data.cost_rp, # Total sementara cuma BBM
+        notes=f"Isi BBM di {data.station_name} ({data.liters}L)"
     )
 
-    db.add(fuel_log)
+    db.add(new_expense)
     db.commit()
-    db.refresh(fuel_log)
 
     return {
-        "message": f"Bensin {data.liters}L di {data.station_name} berhasil dicatat!",
-        "log_id": fuel_log.log_id,
+        "message": f"Biaya BBM Rp{data.cost_rp} di {data.station_name} berhasil dicatat ke pengeluaran operasional!",
+        "log_id": expense_id,
         "efficiency": calculate_efficiency(data.km_akhir - data.km_awal, data.liters)
     }
 
@@ -204,28 +198,29 @@ def add_fuel_log(
 def get_fuel_history(
     truck_id: int, limit: int = 30, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)
 ):
-    logs = db.query(models.FuelLog).filter(
-        models.FuelLog.vehicle_id == truck_id
-    ).order_by(desc(models.FuelLog.log_id)).limit(limit).all()
+    # 🌟 FIX CTO: Narik dari OperationalExpense
+    logs = db.query(models.OperationalExpense).filter(
+        models.OperationalExpense.vehicle_id == truck_id,
+        models.OperationalExpense.bbm > 0
+    ).order_by(desc(models.OperationalExpense.date)).limit(limit).all()
 
     return {
         "status": "success",
         "data": [
             {
-                "logId": l.log_id,
-                "date": str(l.date_logged),
-                "kmStart": l.km_awal,
-                "kmEnd": l.km_akhir,
-                "distance": (l.km_akhir or 0) - (l.km_awal or 0),
-                "liters": l.liters,
-                "costRp": f"Rp{l.cost_rp:,.0f}",
-                "efficiency": calculate_efficiency((l.km_akhir or 0) - (l.km_awal or 0), l.liters),
-                "station": l.station_name
+                "logId": l.id,
+                "date": str(l.date),
+                "kmStart": 0,
+                "kmEnd": 0,
+                "distance": 0,
+                "liters": 0.0,
+                "costRp": f"Rp{l.bbm:,.0f}",
+                "efficiency": 0.0,
+                "station": l.notes or "-"
             } for l in logs
         ]
     }
 
-# 🌟 SUNTIKAN RESPONSE_MODEL
 @router.get("/fleet/summary", response_model=schemas.FleetSummaryResponse)
 def get_fleet_summary(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     today = date.today()
@@ -244,26 +239,41 @@ def get_fleet_summary(db: Session = Depends(get_db), current_user: models.User =
 
 @router.get("/fleet/telematics/{truck_plate}", response_model=schemas.TelematicsResponse)
 def get_live_telematics(truck_plate: str, db: Session = Depends(get_db)):
-    # ... (logic awal sama) ...
+    # 🌟 FIX: Ambil settings dari DATABASE, bukan dari Pydantic / Env
+    db_settings = db.query(models.SystemSettings).first()
+    
+    # Kalau settingan di DB belum ada, pakai nilai default 4.0
+    max_temp = db_settings.alert_max_temp_celsius if db_settings and db_settings.alert_max_temp_celsius else 4.0
+    api_url = db_settings.api_temp_sensor if db_settings else None
+    
+    default_telematics = {
+        "temperature": 2.5,
+        "isTempWarning": False,
+        "compressorStatus": "ON",
+        "gpsSignal": "STRONG",
+        "doorLocked": True,
+        "lastUpdate": datetime.now().isoformat()
+    }
+
     try:
-        url_vendor = f"{settings.api_temp_sensor}?plate={truck_plate}" 
-        response = requests.get(url_vendor, timeout=5)
-        
-        if response.status_code == 200:
-            vendor_data = response.json()
-            current_temp = float(vendor_data.get("suhu_sekarang", 2.5)) 
+        # Hanya tembak API Vendor kalau URL-nya diisi di database
+        if api_url:
+            url_vendor = f"{api_url}?plate={truck_plate}" 
+            response = requests.get(url_vendor, timeout=5)
             
-            return {
-                "temperature": current_temp,
-                "isTempWarning": current_temp > max_temp,
-                "compressorStatus": "ON" if current_temp > 2.0 else "OFF",
-                "gpsSignal": "STRONG", 
-                "doorLocked": vendor_data.get("pintu_terkunci", True),
-                "lastUpdate": datetime.now().isoformat()
-            }
-            
+            if response.status_code == 200:
+                vendor_data = response.json()
+                current_temp = float(vendor_data.get("suhu_sekarang", 2.5)) 
+                
+                return {
+                    "temperature": current_temp,
+                    "isTempWarning": current_temp > max_temp,
+                    "compressorStatus": "ON" if current_temp > 2.0 else "OFF",
+                    "gpsSignal": "STRONG", 
+                    "doorLocked": vendor_data.get("pintu_terkunci", True),
+                    "lastUpdate": datetime.now().isoformat()
+                }
     except Exception as e:
-        # 🌟 FIX CTO: Ganti print ke logger.error
         logger.error(f"⚠️ Gagal narik data dari API Vendor Truk {truck_plate}: {str(e)}")
         pass
 

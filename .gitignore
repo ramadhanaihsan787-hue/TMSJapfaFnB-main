@@ -96,3 +96,8 @@ logs/
 # 14. Build outputs (Backend)
 Backend/dist/
 Backend/build/
+
+# Ignore data folder & Excel files
+Backend/data/
+*.xlsx
+*.csv

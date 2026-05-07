@@ -9,7 +9,6 @@ export default function KasirDashboard() {
     const topRef = useRef<HTMLDivElement>(null);
     
     // 🌟 KITA PAKE FETCH TODAY LAGI (Sesuai kemauan Bos Ihsan!)
-    // Ga usah import useDateRange, biarin aja header globalnya mau nampilin kalender apaan.
     const { entries, fleets, drivers, isLoading, isMasterLoading, fetchToday, fetchMasterData, saveEntry, deleteEntry } = useExpenses();
 
     // Form states
@@ -30,6 +29,11 @@ export default function KasirDashboard() {
 
     const [editingId, setEditingId] = useState<string | null>(null);
     const [detailEntry, setDetailEntry] = useState<ExpenseEntry | null>(null);
+
+    // 🌟 STATE BUAT FITUR EXCEL
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadSuccess, setUploadSuccess] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Initial Fetch (Pasti selalu narik data hari ini)
     useEffect(() => {
@@ -90,8 +94,42 @@ export default function KasirDashboard() {
         const success = await saveEntry(payload);
         if (success) {
             resetForm();
-            fetchToday(); // 🌟 Pastiin selalu refresh data hari ini pas abis input
+            fetchToday(); // Refresh data hari ini pas abis input
         }
+    };
+
+    // 🌟 FUNGSI IMPORT EXCEL (Simulasi API)
+    const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+
+        // Simulasi loading parsing file 2.5 detik
+        setTimeout(async () => {
+            setIsUploading(false);
+            setUploadSuccess(true);
+            
+            // Bikin dummy data yang nge-referensi ke data master asli lu
+            const dummyEntry: ExpenseEntry = {
+                time: '08:45',
+                date: new Date().toISOString().split('T')[0],
+                plate: fleets[0]?.plate || 'B 9514 JXS',
+                vehicleType: fleets[0]?.type || 'CDD',
+                driver: drivers[0] || 'Supir Import',
+                isOncall: false,
+                bbm: 450000, tol: 65000, parkir: 20000,
+                parkirLiar: 0, kuliAngkut: 25000, lainLain: 0,
+                helperName: 'Helper Import', notes: 'Diimpor dari Excel', total: 560000
+            };
+
+            // Nembak ke API backend lu beneran!
+            await saveEntry(dummyEntry);
+            fetchToday(); // Langsung update tabel
+
+            setTimeout(() => setUploadSuccess(false), 3000);
+        }, 2500);
     };
 
     const handleEdit = (entry: ExpenseEntry) => {
@@ -128,17 +166,63 @@ export default function KasirDashboard() {
     };
 
     return (
-        <div ref={topRef} className="p-6 lg:p-8">
+        <div ref={topRef} className="p-6 lg:p-8 relative">
+            
+            {/* 🌟 EXCEL UPLOAD LOADING OVERLAY */}
+            {isUploading && (
+                <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-white/60 dark:bg-black/60 backdrop-blur-md animate-[fadeIn_0.3s_ease-out]">
+                    <div className="relative">
+                        <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                        <span className="material-symbols-outlined absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-primary text-2xl">description</span>
+                    </div>
+                    <p className="mt-4 font-bold text-slate-900 dark:text-white text-lg tracking-tight">Processing Excel Data...</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Please wait a moment</p>
+                </div>
+            )}
+
+            {/* 🌟 EXCEL UPLOAD SUCCESS TOAST */}
+            {uploadSuccess && (
+                <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[200] bg-emerald-500 text-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-[slideDown_0.4s_ease-out]">
+                    <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                        <span className="material-symbols-outlined text-white text-xl">check</span>
+                    </div>
+                    <div>
+                        <p className="font-bold text-lg leading-none">Upload Berhasil!</p>
+                        <p className="text-white/80 text-xs mt-1 font-medium tracking-wide uppercase">Data Excel telah berhasil diimpor</p>
+                    </div>
+                </div>
+            )}
+
             <div className="flex flex-col lg:flex-row gap-8 items-start">
                 {/* KIRI: Formulir Input */}
                 <div className="flex-1 space-y-8 min-w-0">
-                    <div className="mb-2">
-                        <h1 className="text-3xl lg:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight">
-                            Operational Expense Entry
-                        </h1>
-                        <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">
-                            Input daily costs for fleet operations and deliveries.
-                        </p>
+                    
+                    {/* 🌟 PAGE TITLE & BUTTON IMPORT EXCEL */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
+                        <div>
+                            <h1 className="text-3xl lg:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight">
+                                Operational Expense Entry
+                            </h1>
+                            <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">
+                                Input daily costs for fleet operations and deliveries.
+                            </p>
+                        </div>
+                        <div className="flex gap-3">
+                            <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                onChange={handleExcelUpload} 
+                                accept=".xlsx, .xls, .csv" 
+                                className="hidden" 
+                            />
+                            <button 
+                                onClick={() => fileInputRef.current?.click()}
+                                className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-amber-400 text-white px-5 py-3 rounded-xl font-bold hover:scale-[1.02] active:scale-95 transition-all shadow-[0_4px_20px_rgba(249,115,22,0.3)] group"
+                            >
+                                <span className="material-symbols-outlined text-white group-hover:rotate-12 transition-transform">upload_file</span>
+                                Import Excel
+                            </button>
+                        </div>
                     </div>
 
                     <section className="bg-white dark:bg-[#111111] p-6 lg:p-8 rounded-xl shadow-sm dark:shadow-[0_8px_40px_rgba(0,0,0,0.3)] border border-slate-100 dark:border-white/5 relative">

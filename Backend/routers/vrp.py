@@ -1,26 +1,24 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks # 🌟 FIX: Tambah BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import Optional
 import datetime
 import json
 import math
 import os
-import uuid # 🌟 FIX: Buat bikin ID Tiket (Job ID)
-import logging # 🌟 FIX: Buat nangkep error bocor
+import uuid
+import logging
 
-from database import SessionLocal # 🌟 FIX: Background task butuh koneksi DB sendiri!
+from database import SessionLocal
 import models
 import schemas
 from services import vrp_solver, map_service
 from utils.helpers import time_str_to_minutes, menit_ke_jam, classify_store
 from dependencies import get_db, get_settings, get_current_user, require_role
-from core.config import settings as env_settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["VRP & Route Planning"])
 
 # 🌟 TEMPAT PENYIMPANAN SEMENTARA HASIL VRP (IN-MEMORY CACHE)
-# Nanti kalau udah pro, ini dipindah ke Redis. Buat MVP, ini udah cukup banget!
 VRP_JOBS = {}
 
 # ==========================================
@@ -32,7 +30,6 @@ def run_vrp_optimization_task(job_id: str, preview: bool):
     db = SessionLocal() 
     try:
         settings = get_settings()
-        TOMTOM_KEY   = env_settings.TOMTOM_API_KEY
         DEPO_LAT     = settings.depo_lat
         DEPO_LON     = settings.depo_lon
         START_MINUTE = time_str_to_minutes(settings.vrp_start_time)
@@ -64,15 +61,19 @@ def run_vrp_optimization_task(job_id: str, preview: bool):
         for idx, order in enumerate(pending_orders):
             locations.append({"lat": float(order.latitude), "lon": float(order.longitude)})
             demands.append(int(order.weight_total))
-            is_mall.append(classify_store(order.customer_name))
+            
+            # 🌟 FIX CTO: Ambil nama toko dari relasi MasterCustomer
+            nama_toko = order.customer.store_name if order.customer else "Toko"
+            is_mall.append(classify_store(nama_toko)) 
+            
             tw_start = order.delivery_window_start or START_MINUTE
             tw_end   = order.delivery_window_end   or END_MINUTE
             time_windows.append((tw_start, tw_end))
             node_to_order[idx + 1] = order
 
-        distance_matrix, time_matrix = None, None
-        if TOMTOM_KEY:
-            distance_matrix, time_matrix = map_service.build_tomtom_matrix(locations, TOMTOM_KEY)
+        # 🌟 FIX CTO: Tarik Matrix dari VPS OSRM Mandiri (Bebas Biaya TomTom!)
+        distance_matrix, time_matrix = map_service.build_osrm_matrix(locations)
+        
         if distance_matrix is None:  
             distance_matrix, time_matrix = map_service.build_haversine_matrix(locations)
 
@@ -113,7 +114,9 @@ def run_vrp_optimization_task(job_id: str, preview: bool):
             )
             if not preview: db.add(new_plan)
 
-            route_geometry = map_service.get_road_geometry(route_indices, locations, TOMTOM_KEY) if TOMTOM_KEY else []
+            # 🌟 FIX CTO: Tarik garis aspal langsung dari OSRM VPS
+            route_geometry = map_service.get_road_geometry(route_indices, locations)
+            
             manifest, total_muatan, current_time, prev_node = [], 0, START_MINUTE, 0
 
             for step, node_idx in enumerate(route_indices):
@@ -143,7 +146,8 @@ def run_vrp_optimization_task(job_id: str, preview: bool):
                     order.status = models.DOStatus.do_assigned_to_route
 
                 manifest.append({
-                    "urutan": step, "nomor_do": order.order_id, "nama_toko": order.customer_name,
+                    "urutan": step, "nomor_do": order.order_id, 
+                    "nama_toko": order.customer.store_name if order.customer else "Toko", # 🌟 PAKE INI
                     "turun_barang_kg": round(demands[node_idx], 2), "jam_tiba": str(est_arrival),
                     "lat": float(order.latitude), "lon": float(order.longitude), "distance_from_prev_km": seg_km
                 })
@@ -161,7 +165,14 @@ def run_vrp_optimization_task(job_id: str, preview: bool):
                 "detail_perjalanan": manifest, "garis_aspal": route_geometry
             })
 
-        dropped = [{"nama_toko": node_to_order[n].customer_name, "berat_kg": node_to_order[n].weight_total, "lat": float(node_to_order[n].latitude), "lon": float(node_to_order[n].longitude), "alasan": "Kapasitas Penuh"} for n in range(1, len(locations)) if n not in assigned_nodes]
+        # 🌟 FIX CTO: Ambil nama dari relasi customer
+        dropped = [{
+            "nama_toko": node_to_order[n].customer.store_name if node_to_order[n].customer else "Toko", 
+            "berat_kg": node_to_order[n].weight_total, 
+            "lat": float(node_to_order[n].latitude), 
+            "lon": float(node_to_order[n].longitude), 
+            "alasan": "Kapasitas Penuh"
+        } for n in range(1, len(locations)) if n not in assigned_nodes]
 
         if preview: db.rollback()
         else: db.commit()
@@ -242,7 +253,7 @@ def get_routes(
             if order:
                 items = json.loads(order.service_type) if order.service_type and order.service_type.startswith('[') else []
                 detail_rute.append({
-                    "urutan": line.sequence, "nama_toko": order.customer_name, "latitude": float(order.latitude) if order.latitude else 0.0,
+                    "urutan": line.sequence, "nama_toko": order.customer_name if hasattr(order, 'customer_name') else "Toko", "latitude": float(order.latitude) if order.latitude else 0.0,
                     "longitude": float(order.longitude) if order.longitude else 0.0, "berat_kg": order.weight_total,
                     "jam_tiba": str(line.est_arrival), "distance_from_prev_km": line.distance_from_prev_km or 0.0, "items": items
                 })
@@ -263,7 +274,7 @@ def get_routes(
         })
 
     unassigned = db.query(models.DeliveryOrder).filter(models.DeliveryOrder.status == models.DOStatus.do_verified).all()
-    return {"routes": hasil, "dropped_nodes": [{"nama_toko": o.customer_name, "berat_kg": o.weight_total, "alasan": "Drop AI", "lat": float(o.latitude) if o.latitude else 0.0, "lon": float(o.longitude) if o.longitude else 0.0} for o in unassigned]}
+    return {"routes": hasil, "dropped_nodes": [{"nama_toko": o.customer_name if hasattr(o, 'customer_name') else "Toko", "berat_kg": o.weight_total, "alasan": "Drop AI", "lat": float(o.latitude) if o.latitude else 0.0, "lon": float(o.longitude) if o.longitude else 0.0} for o in unassigned]}
 
 @router.post("/routes/confirm", response_model=schemas.ConfirmRouteResponse)
 def confirm_routes(payload: dict, db: Session = Depends(get_db), current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))):
@@ -302,7 +313,6 @@ def confirm_routes(payload: dict, db: Session = Depends(get_db), current_user: m
         return {"message": f"Sukses! {len(jadwal)} rute dikonfirmasi.", "status": "success"}
     except Exception as e:
         db.rollback()
-        # 🌟 FIX CTO: Error asli dicatet rahasia, error frontend dibikin aman
         logger.error(f"🚨 [CONFIRM ROUTES ERROR]: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Terjadi kesalahan internal saat mengonfirmasi rute.")
 
@@ -328,7 +338,7 @@ def get_load_plan(route_id: str, db: Session = Depends(get_db), current_user: mo
         berat = float(order.weight_total)
         jml_keranjang = math.ceil(berat / 25.0)
         for i in range(jml_keranjang):
-            packer.add_item(Item(f"{order.customer_name} | Box {i+1}", 60, 40, 30, berat / jml_keranjang))
+            packer.add_item(Item(f"{order.customer_name if hasattr(order, 'customer_name') else 'Toko'} | Box {i+1}", 60, 40, 30, berat / jml_keranjang))
 
     packer.pack()
     result = [{"truck": b.name, "truck_dimensions": {"w": truck_w, "h": truck_h, "d": truck_d}, "total_weight_loaded": float(b.get_total_weight()), "3d_layout_data": [{"item_name": item.name, "position_xyz": [float(item.position[0]), float(item.position[1]), float(item.position[2])], "dimensions_whd": [float(item.width), float(item.height), float(item.depth)], "rotation": item.rotation_type} for item in b.items], "unfitted_items": [item.name for item in b.unfitted_items]} for b in packer.bins]

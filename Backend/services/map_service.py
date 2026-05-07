@@ -1,15 +1,17 @@
 # services/map_service.py
 import requests
-import time
 import math
-import logging # 🌟 FIX CTO: Pakai proper logging, bukan print!
+import logging
 
 # Setup logger biar rapi
 logger = logging.getLogger(__name__)
 
+# 🌟 FIX CTO: URL VPS OSRM Lu yang nyala 24 jam!
+OSRM_BASE_URL = "http://157.10.161.170:5000"
+
 def calculate_haversine(lat1, lon1, lat2, lon2) -> int:
     """Jarak garis lurus bumi dalam meter (Rumus Akurat)"""
-    R = 6371.0 # Radius bumi dalam Kilometer (pakai float biar akurat)
+    R = 6371.0 # Radius bumi dalam Kilometer
     
     # Konversi ke Radian
     lat1_rad = math.radians(lat1)
@@ -24,55 +26,42 @@ def calculate_haversine(lat1, lon1, lat2, lon2) -> int:
     # Hasil akhir ubah ke meter (int)
     return int(R * c * 1000) 
 
-def build_tomtom_matrix(locations: list, api_key: str):
-    """Bangun distance & time matrix pakai TomTom Async API."""
-    url = f"https://api.tomtom.com/routing/matrix/2/async?key={api_key}"
-    points = [{"point": {"latitude": loc["lat"], "longitude": loc["lon"]}} for loc in locations]
-    payload = {
-        "origins": points, "destinations": points,
-        "options": {"routeType": "fastest", "traffic": "historical", "travelMode": "truck"}
-    }
-
+def build_osrm_matrix(locations: list):
+    """
+    Bangun distance & time matrix pakai OSRM VPS Mandiri.
+    Lebih cepat dari TomTom dan GRATIS!
+    """
     try:
-        logger.info("🗺️ Menembak TomTom Matrix API...")
-        response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=15)
+        logger.info(f"🗺️ Menembak OSRM Matrix API untuk {len(locations)} titik...")
+        
+        # 🌟 FIX CTO: OSRM mintanya Longitude duluan (lon,lat)
+        coords = ";".join([f"{loc['lon']},{loc['lat']}" for loc in locations])
+        
+        # Endpoint table buat narik matriks massal
+        url = f"{OSRM_BASE_URL}/table/v1/driving/{coords}?annotations=duration,distance"
+        
+        response = requests.get(url, timeout=30)
         response.raise_for_status()
-        matrix_result = None
-
-        if response.status_code == 202:
-            job_id = response.json().get('jobId')
-            tracking_url = f"https://api.tomtom.com/routing/matrix/2/async/{job_id}?key={api_key}"
-            for _ in range(30):
-                time.sleep(2)
-                status_res = requests.get(tracking_url, timeout=10)
-                if status_res.status_code == 200:
-                    state = status_res.json().get("state", "").upper()
-                    if state == "COMPLETED":
-                        matrix_result = requests.get(f"{tracking_url}/result?key={api_key}", timeout=15).json()
-                        break
-                    elif state == "FAILED":
-                        raise Exception("TomTom job FAILED")
-            if not matrix_result: raise Exception("TomTom timeout!")
-        else:
-            matrix_result = response.json()
-
+        data = response.json()
+        
+        if data.get("code") != "Ok":
+            raise Exception(f"OSRM Error: {data.get('code')}")
+            
         n = len(locations)
-        distance_matrix, time_matrix = [[0] * n for _ in range(n)], [[0] * n for _ in range(n)]
-
-        if "data" in matrix_result:
-            for cell in matrix_result["data"]:
-                o_idx, d_idx = cell.get("originIndex", 0), cell.get("destinationIndex", 0)
-                if "routeSummary" in cell:
-                    distance_matrix[o_idx][d_idx] = cell["routeSummary"]["lengthInMeters"]
-                    time_matrix[o_idx][d_idx] = int(cell["routeSummary"].get("travelTimeInSeconds", 0) / 60)
-                else:
-                    distance_matrix[o_idx][d_idx], time_matrix[o_idx][d_idx] = 999999, 999
-
-        logger.info("✅ TomTom Matrix berhasil!")
+        distance_matrix = [[0] * n for _ in range(n)]
+        time_matrix = [[0] * n for _ in range(n)]
+        
+        for i in range(n):
+            for j in range(n):
+                distance_matrix[i][j] = int(data["distances"][i][j])
+                # Convert detik ke menit biar OR-Tools lu seneng
+                time_matrix[i][j] = int(data["durations"][i][j] / 60)
+                
+        logger.info("✅ OSRM Matrix berhasil didapatkan!")
         return distance_matrix, time_matrix
 
     except Exception as e:
-        logger.warning(f"⚠️ TomTom gagal: {e} → Switch ke Haversine")
+        logger.warning(f"⚠️ OSRM gagal: {e} → Switch ke Haversine fallback")
         return None, None
 
 def build_haversine_matrix(locations: list):
@@ -83,20 +72,27 @@ def build_haversine_matrix(locations: list):
     for i in range(n):
         for j in range(n):
             if i != j:
-                # SESUDAH FIX
                 dist = calculate_haversine(locations[i]["lat"], locations[i]["lon"], locations[j]["lat"], locations[j]["lon"])
                 distance_matrix[i][j] = dist
                 time_matrix[i][j] = int(dist / 400) 
     return distance_matrix, time_matrix
 
-def get_road_geometry(route_indices: list, locations: list, api_key: str) -> list:
-    """Ambil polyline aspal dari TomTom"""
-    waypoints_str = ":".join([f"{locations[n]['lat']},{locations[n]['lon']}" for n in route_indices])
+def get_road_geometry(route_indices: list, locations: list) -> list:
+    """Ambil polyline aspal rute dari OSRM VPS Mandiri"""
     try:
-        url = f"https://api.tomtom.com/routing/1/calculateRoute/{waypoints_str}/json?key={api_key}&routeType=fastest&travelMode=truck"
+        # 🌟 FIX CTO: OSRM mintanya Longitude duluan (lon,lat)
+        coords = ";".join([f"{locations[n]['lon']},{locations[n]['lat']}" for n in route_indices])
+        
+        # Endpoint route buat narik polyline / garis jalan
+        url = f"{OSRM_BASE_URL}/route/v1/driving/{coords}?overview=full&geometries=geojson"
+        
         res = requests.get(url, timeout=15)
         if res.status_code == 200:
-            return [[p['latitude'], p['longitude']] for leg in res.json()['routes'][0]['legs'] for p in leg['points']]
+            data = res.json()
+            if data.get("code") == "Ok":
+                # OSRM ngasih GeoJSON [lon, lat], kita puter balik ke [lat, lon] buat mapbox frontend
+                coordinates = data["routes"][0]["geometry"]["coordinates"]
+                return [[p[1], p[0]] for p in coordinates]
     except Exception as e:
-        logger.error(f"⚠️ Gagal ambil geometry: {e}")
+        logger.error(f"⚠️ Gagal ambil geometry OSRM: {e}")
     return []
