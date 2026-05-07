@@ -25,6 +25,9 @@ class CoordinateUpdateRequest(BaseModel):
     kode_customer: str
     nama_customer: str
 
+class WeightUpdateRequest(BaseModel):
+    weight: float
+
 def parse_time_window(keterangan: str, default_start: int, default_end: int):
     if not keterangan:
         return default_start, default_end, False
@@ -332,3 +335,13 @@ def reject_pod(
         "order_id": order_id, 
         "new_status": order.status.value
     }
+
+@router.put("/orders/{order_id}/weight", response_model=schemas.OrderActionResponse)
+def update_weight(order_id: str, data: WeightUpdateRequest, db: Session = Depends(get_db)):
+    order = db.query(models.DeliveryOrder).filter(models.DeliveryOrder.order_id == order_id).first()
+    if not order: raise HTTPException(status_code=404, detail="Order tidak ditemukan")
+    
+    order.weight_total = data.weight
+    db.commit()
+    
+    return {"message": "Berat berhasil diupdate!", "order_id": order_id}

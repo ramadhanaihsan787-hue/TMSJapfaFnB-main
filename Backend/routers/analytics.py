@@ -1,18 +1,18 @@
 # routers/analytics.py
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse # 🌟 BUAT NGIRIM FILE KE BROWSER
+from fastapi.responses import StreamingResponse 
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import date
 import io
-import pandas as pd # 🌟 MAGIC EXCEL KITA
+import pandas as pd 
 
 import models
 import schemas
 from dependencies import get_db, get_settings, get_current_user, require_role
 
-# 🌟 IMPORT SERVICE DAPUR KITA
 from services import analytics_service
+from services import analytics_service, driver_performance_service
 
 router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
 
@@ -75,7 +75,8 @@ def get_driver_performance(
     if not startDate: startDate = str(date.today())
     if not endDate: endDate = str(date.today())
     
-    return analytics_service.get_driver_performance(db, startDate, endDate)
+    # 🌟 FIX CTO: Panggil service baru yang Real Data!
+    return driver_performance_service.get_real_driver_performance(db, startDate, endDate)
 
 # ==========================================
 # ENDPOINT 5: RETURNS DASHBOARD (TAB 2)
@@ -95,7 +96,7 @@ def get_efficiency_dashboard(db: Session = Depends(get_db)):
     return {"status": "success", "data": data}
 
 # ==========================================
-# ENDPOINT 7: MONITORING ALERTS (FIX CTO: REAL-TIME DB)
+# ENDPOINT 7: MONITORING ALERTS
 # ==========================================
 @router.get("/monitoring-alerts")
 def get_monitoring_alerts(db: Session = Depends(get_db)):
@@ -132,7 +133,7 @@ def get_manager_overview(
 
 
 # =========================================================================
-# 🌟 SUNTIKAN CTO POINT 4: CETAK EXCEL REPORT NYATA (FR-6.5)
+# CETAK EXCEL REPORT NYATA 
 # =========================================================================
 @router.get("/export")
 def export_analytics_data(

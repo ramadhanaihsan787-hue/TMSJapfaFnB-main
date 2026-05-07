@@ -60,4 +60,13 @@ export const routeService = {
     const res = await api.post(`/api/routes/confirm`, previewData);
     return res.data;
   },
+
+  updateWeight: async (orderId: string, weight: number) => {
+        const response = await api.put(`/orders/${orderId}/weight`, { weight });
+        return response.data;
+    },
+    updateOrderCoordinate: async (orderId: string, data: { latitude: number, longitude: number, kode_customer: string, nama_customer: string }) => {
+        const response = await api.put(`/orders/${orderId}/coordinate`, data);
+        return response.data;
+    },
 };

@@ -60,12 +60,14 @@ def get_live_tracking(
             if order and order.latitude and order.longitude:
                 lat = float(order.latitude) + 0.005
                 lon = float(order.longitude) - 0.005
-                status_text = f"Menuju: {order.customer_name}"
+                nama_toko = order.customer.store_name if order.customer else "Toko"
+                status_text = f"Menuju: {nama_toko}"
 
                 if next_stop.est_arrival:
                     est_m = next_stop.est_arrival.hour * 60 + next_stop.est_arrival.minute
                     delay_minutes = now_minutes - est_m
-                    is_delayed = delay_minutes > settings.alert_delay_mins
+                    batas_delay = getattr(settings, 'alert_delay_mins', 30)
+                    is_delayed = delay_minutes > batas_delay
 
                     if is_delayed:
                         status_text = f"⚠️ DELAYED +{delay_minutes} menit"
@@ -124,7 +126,8 @@ def get_realtime_alerts(
         est_m = first_stop.est_arrival.hour * 60 + first_stop.est_arrival.minute
         delay = now_minutes - est_m
 
-        if delay > settings.alert_delay_mins:
+        batas_delay = getattr(settings, 'alert_delay_mins', 30) 
+        if delay > batas_delay:
             vehicle = db.query(models.FleetVehicle).filter(
                 models.FleetVehicle.vehicle_id == route.vehicle_id
             ).first()

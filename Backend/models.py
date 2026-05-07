@@ -21,7 +21,6 @@ class DOStatus(enum.Enum):
     delivered_success = "DELIVERED_SUCCESS"
     delivered_partial = "DELIVERED_PARTIAL"
     billed = "BILLED"
-    # 🌟 FIX CTO: Sinkronisasi 100% dengan Dokumen SRS (State Machine)
     cancelled = "CANCELLED"
     failed = "FAILED"
 
@@ -55,7 +54,8 @@ class HRDriver(Base):
     status = Column(Boolean, default=True)
     
     user_account = relationship("User", back_populates="driver_profile")
-    route_plans = relationship("TMSRoutePlan", back_populates="driver")
+    
+    route_plans = relationship("TMSRoutePlan", foreign_keys="TMSRoutePlan.driver_id", back_populates="driver")
 
 # ==========================================
 # 2. MASTER DATA ARMADA
@@ -145,6 +145,7 @@ class TMSRoutePlan(Base):
     
     vehicle_id = Column(Integer, ForeignKey("fleet_vehicles.vehicle_id"))
     driver_id = Column(Integer, ForeignKey("hr_drivers.driver_id"))
+    helper_id = Column(Integer, ForeignKey("hr_drivers.driver_id"), nullable=True)
     
     start_time = Column(DateTime, default=lambda: datetime.datetime.now().replace(hour=6, minute=0, second=0))
     end_time = Column(DateTime)
@@ -153,7 +154,10 @@ class TMSRoutePlan(Base):
     total_distance_km = Column(Float)
     
     vehicle = relationship("FleetVehicle", back_populates="route_plans")
-    driver = relationship("HRDriver", back_populates="route_plans")
+    
+    driver = relationship("HRDriver", foreign_keys="TMSRoutePlan.driver_id", back_populates="route_plans")
+    helper = relationship("HRDriver", foreign_keys="TMSRoutePlan.helper_id")
+    
     route_lines = relationship("TMSRouteLine", back_populates="route_plan")
 
 class TMSRouteLine(Base):

@@ -12,16 +12,13 @@ def job_check_rejected_pods():
     db = SessionLocal()
     try:
         now = datetime.datetime.now()
-        
-        # 🌟 FIX 2 (Settings): Waktu toleransi ditarik dari settings
-        # Misal pake alert_delay_mins dari setting, atau bikin default 120 menit (2 jam)
         timeout_mins = getattr(settings, 'alert_delay_mins', 120)
         threshold = now - datetime.timedelta(minutes=timeout_mins)
         
-        # 🌟 FIX 3 (Optimasi Query): Pake .limit() biar RAM ngga jebol
         suspect_orders = db.query(models.DeliveryOrder).filter(
-            models.DeliveryOrder.status == 'delivered_pod_rejected'
-        ).limit(50).all() # Proses maksimal 50 DO per razia biar server enteng
+            # Ganti == models.DOStatus.failed jadi IN string biar kebal huruf besar/kecil
+            models.DeliveryOrder.status.cast(models.String).in_(["failed", "FAILED", "Failed"])
+        ).limit(50).all()
 
         count_failed = 0
         for order in suspect_orders:

@@ -1,5 +1,6 @@
 // src/features/routes/hooks/useUpload.ts
 import { useState } from "react";
+import { toast } from 'sonner'; // 🌟 Tambahin toaster buat ngasih tau kalau sukses
 import { routeService } from "../services/routeService";
 import type { UploadResult } from "../types";
 
@@ -37,10 +38,10 @@ export const useUpload = () => {
                 failed: (data.failed_list || []).map(mapBackendToFrontend),
             });
             
-            return true; // Berhasil
+            return true; 
         } catch (err) {
             console.error("Gagal upload:", err);
-            return false; // Gagal
+            return false; 
         } finally {
             setIsUploading(false);
         }
@@ -49,8 +50,16 @@ export const useUpload = () => {
     const updateTime = async (orderId: string, time: string) => {
         try {
             await routeService.updateTimeWindow(orderId, time);
+            // Update state lokal biar UI langsung refresh tanpa loading
+            if (uploadReport) {
+                const newSuccess = uploadReport.success.map(item => 
+                    item.orderId === orderId ? { ...item, maxTime: time } : item
+                );
+                setUploadReport({ ...uploadReport, success: newSuccess });
+            }
         } catch (error) {
             console.error("Gagal update waktu:", error);
+            toast.error("Gagal update jam!");
         }
     };
 
@@ -75,12 +84,58 @@ export const useUpload = () => {
         }
     };
 
+    // 🌟 SUNTIKAN BARU: UPDATE BERAT (KG)
+    const updateWeight = async (orderId: string, weight: number) => {
+        try {
+            await routeService.updateWeight(orderId, weight);
+            if (uploadReport) {
+                const newSuccess = uploadReport.success.map(item => 
+                    item.orderId === orderId ? { ...item, weight: weight } : item
+                );
+                setUploadReport({ ...uploadReport, success: newSuccess });
+            }
+            toast.success("Berat berhasil diupdate!");
+        } catch (error) {
+            console.error("Gagal update berat:", error);
+            toast.error("Gagal update berat!");
+        }
+    };
+
+    // 🌟 SUNTIKAN BARU: UPDATE KORDINAT DI TABEL SUKSES
+    const updateSuccessCoord = async (orderId: string, lat: number, lon: number) => {
+        try {
+            const item = uploadReport?.success.find(i => i.orderId === orderId);
+            if (!item) return;
+
+            // Pake API update kordinat yang udah ada buat order yang valid
+            await routeService.updateOrderCoordinate(orderId, {
+                latitude: lat,
+                longitude: lon,
+                kode_customer: item.customerCode || "",
+                nama_customer: item.storeName
+            });
+
+            if (uploadReport) {
+                const newSuccess = uploadReport.success.map(i => 
+                    i.orderId === orderId ? { ...i, coordinates: `${lat}, ${lon}` } : i
+                );
+                setUploadReport({ ...uploadReport, success: newSuccess });
+            }
+            toast.success("Kordinat berhasil diperbarui!");
+        } catch (error) {
+            console.error("Gagal update kordinat sukses:", error);
+            toast.error("Gagal update kordinat!");
+        }
+    };
+
     return {
         isUploading,
         uploadReport,
         setUploadReport,
         uploadFile,
         updateTime,
-        saveCoord
+        saveCoord,
+        updateWeight, // 🌟 EXPORT FUNGSI BARU
+        updateSuccessCoord // 🌟 EXPORT FUNGSI BARU
     };
 };

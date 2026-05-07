@@ -1,7 +1,6 @@
 // src/features/routes/pages/RoutePlanningPage.tsx
 import React, { useState, useEffect } from "react";
 import { toast } from 'sonner'; 
-// 🌟 KOMPONEN HEADER DIHAPUS DARI SINI
 
 import { useRoutes } from "../hooks/useRoutes";
 import { useUpload } from "../hooks/useUpload";
@@ -15,19 +14,18 @@ import RouteMap from "../components/RouteMap";
 import RouteLoadingOverlay from "../components/RouteLoadingOverlay";
 import UploadVerificationModal from "../components/UploadVerificationModal";
 import RoutePreviewModal from "../components/RoutePreviewModal";
+// 🌟 FIX CTO: JANGAN LUPA IMPORT MODAL DISPATCH-NYA!
+import RouteDispatchModal from "../components/RouteDispatchModal";
 
-// 🌟 IMPORT KURIR JUDUL
 import { useHeaderStore } from "../../../store/useHeaderStore";
 
 export default function RoutePlanningPage() {
     const { setTitle } = useHeaderStore();
 
-    // 🌟 SET JUDUL SAAT HALAMAN DIBUKA
     useEffect(() => {
         setTitle("Route Planning Dashboard");
     }, [setTitle]);
 
-    // ================= STATE LOKAL HALAMAN =================
     const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
     const [isFocusMode, setIsFocusMode] = useState(false);
     const [showMapView, setShowMapView] = useState(false);
@@ -36,17 +34,20 @@ export default function RoutePlanningPage() {
 
     const truckColors = ['#e11d48', '#0284c7', '#16a34a', '#d97706', '#9333ea', '#0d9488', '#0891b2'];
 
-    // ================= PANGGIL HOOKS =================
     const { routesData, droppedNodes, selectedRouteId, setSelectedRouteId, fetchRoutes } = useRoutes();
-    const { isUploading, uploadReport, setUploadReport, uploadFile, updateTime, saveCoord } = useUpload();
-    const { isOptimizing, previewData, setPreviewData, loadingProgress, optimize, confirm } = useRouteOptimization();
+    
+    const { 
+        isUploading, uploadReport, setUploadReport, uploadFile, 
+        updateTime, saveCoord, updateWeight, updateSuccessCoord 
+    } = useUpload();
+    
+    // 🌟 FIX CTO: Tarik resequenceRoute dari hook!
+    const { isOptimizing, previewData, setPreviewData, loadingProgress, optimize, confirm, resequenceRoute } = useRouteOptimization();
 
-    // ================= EFEK AWAL (LOAD DATA) =================
     useEffect(() => {
         fetchRoutes(selectedDate);
     }, [selectedDate, fetchRoutes]);
 
-    // ================= HANDLERS =================
     const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
@@ -66,37 +67,21 @@ export default function RoutePlanningPage() {
         }
     };
 
-    const handleConfirm = async () => {
-        try {
-            await confirm();
-            toast.success('Rute berhasil dikunci & disimpan ke Database! 🚀');
-            const todayStr = new Date().toISOString().split('T')[0];
-            setSelectedDate(todayStr);
-            await fetchRoutes(todayStr);
-        } catch (error) {
-            toast.error('Gagal menyimpan rute permanen!');
-        }
-    };
-
-    // ================= KALKULASI KPI DINAMIS =================
     const safeRoutesData = Array.isArray(routesData) ? routesData : [];
-
     const totalFleet = safeRoutesData.length;
-    
     const totalOrders = safeRoutesData.reduce((sum, route: any) => sum + (route.destinationCount || route.destinasi_jumlah || 0), 0);
-    
     const totalCostRaw = safeRoutesData.reduce((sum, route: any) => sum + (route.transportCost || route.transport_cost || 0), 0);
     const totalCost = totalCostRaw.toLocaleString('id-ID');
-    
     const totalRealDistance = safeRoutesData.reduce((sum, route: any) => sum + (route.totalDistanceKm || route.total_distance_km || 0), 0).toFixed(1);
     
     const selectedRouteData = safeRoutesData.find((r: any) => (r.routeId || r.route_id) === selectedRouteId);
+
+    const [dispatchData, setDispatchData] = useState<any>(null);
+    const [isSavingRoute, setIsSavingRoute] = useState(false);
     
     return (
         <div className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 dark:bg-[#0A0A0A]">
-            {/* 🌟 <Header /> UDAH GA ADA DI SINI BIAR GA NUMPUK */}
 
-            {/* 🌟 OVERLAYS & MODALS */}
             <RouteLoadingOverlay 
                 isUploading={isUploading} 
                 isOptimizing={isOptimizing} 
@@ -112,11 +97,13 @@ export default function RoutePlanningPage() {
                     }}
                     onSaveCoord={saveCoord}
                     onUpdateTime={updateTime}
+                    onUpdateWeight={updateWeight}
+                    onUpdateSuccessCoord={updateSuccessCoord}
                     onOptimize={handleOptimize}
                 />
             )}
 
-            {previewData && (
+            {previewData && !dispatchData && (
                 <RoutePreviewModal 
                     previewData={previewData}
                     truckColors={truckColors}
@@ -124,13 +111,40 @@ export default function RoutePlanningPage() {
                         setPreviewData(null);
                         setShowVerificationModal(true);
                     }}
-                    onConfirmSave={handleConfirm}
+                    onProceedDispatch={(draft) => {
+                        setDispatchData(draft);
+                    }}
+                    onResequence={async (draft) => {
+                        await resequenceRoute(draft);
+                    }}
                 />
             )}
 
-            {/* 🌟 KONTEN UTAMA (SCROLLABLE) */}
-            <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+            {dispatchData && (
+                <RouteDispatchModal 
+                    draftData={dispatchData}
+                    isSaving={isSavingRoute}
+                    onBack={() => setDispatchData(null)}
+                    onConfirmSave={async (finalDataWithKru: any) => { // 🌟 FIX CTO: Kasih tipe any biar TS ga bawel
+                        setIsSavingRoute(true);
+                        try {
+                            await confirm(finalDataWithKru);
+                            toast.success('Rute berhasil dikunci & Armada diberangkatkan! 🚀');
+                            const todayStr = new Date().toISOString().split('T')[0];
+                            setSelectedDate(todayStr);
+                            await fetchRoutes(todayStr);
+                            setDispatchData(null);
+                            setPreviewData(null);
+                        } catch (error) {
+                            toast.error('Gagal menyimpan rute permanen!');
+                        } finally {
+                            setIsSavingRoute(false);
+                        }
+                    }}
+                />
+            )}
 
+            <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
                 <RouteToolbar 
                     selectedDate={selectedDate}
                     onDateChange={setSelectedDate}
@@ -179,7 +193,6 @@ export default function RoutePlanningPage() {
                     </div>
                 </div>
 
-                {/* Peta Gede di Bawah */}
                 <div className="w-full mt-8 bg-white dark:bg-[#1F1F1F] border border-slate-200 dark:border-[#333] rounded-2xl shadow-sm overflow-hidden flex flex-col h-[70vh] min-h-[600px]">
                     <div className="p-5 border-b border-slate-200 dark:border-[#333] shrink-0 flex justify-between items-center bg-slate-50 dark:bg-[#1A1A1A]">
                         <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-2">

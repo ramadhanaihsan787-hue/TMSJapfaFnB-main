@@ -1,5 +1,6 @@
+// src/features/routes/hooks/useRouteOptimization.ts
 import { useState } from "react";
-// 🌟 FIX CTO: Pastiin lu nge-import api dari client lu yang bener
+import { toast } from 'sonner';
 import { api } from "../../../shared/services/apiClient";
 
 export const useRouteOptimization = () => {
@@ -11,24 +12,20 @@ export const useRouteOptimization = () => {
         setIsOptimizing(true);
         setLoadingProgress(1);
 
-        // Animasi bar loading palsu biar UI keliatan mikir (lebih lambat karena Async bisa 30 detik)
         const progressInterval = setInterval(() => {
             setLoadingProgress((old) => (old >= 95 ? 95 : old + 1));
         }, 1000); 
 
         try {
-            // 🌟 1. KASIR: Minta tiket antrian dulu
             const startRes = await api.post(`/api/routes/optimize/start?preview=${preview}`);
             const jobId = startRes.data.job_id;
 
-            // 🌟 2. CUSTOMER: Bikin fungsi recursive buat ngecek pesanan
             const checkStatus = async () => {
                 try {
                     const statusRes = await api.get(`/api/routes/optimize/status/${jobId}`);
                     const jobInfo = statusRes.data;
 
                     if (jobInfo.status === 'completed') {
-                        // 🎉 BERHASIL! 
                         clearInterval(progressInterval);
                         setLoadingProgress(100);
 
@@ -41,14 +38,12 @@ export const useRouteOptimization = () => {
                         return jobInfo.data;
 
                     } else if (jobInfo.status === 'failed') {
-                        // 💀 GAGAL
                         clearInterval(progressInterval);
                         setIsOptimizing(false);
                         setLoadingProgress(0);
                         throw new Error(jobInfo.message || "AI gagal menghitung rute.");
 
                     } else {
-                        // ⏳ MASIH PROCESSING: Nanya lagi 3 detik kemudian
                         setTimeout(checkStatus, 3000);
                     }
                 } catch (error) {
@@ -56,13 +51,10 @@ export const useRouteOptimization = () => {
                     setIsOptimizing(false);
                     setLoadingProgress(0);
                     console.error("Gagal polling status VRP:", error);
-                    // Jangan lempar error ke UI langsung kalau cuma gagal ngecek, 
-                    // kecuali lu bener-bener mau nge-stop prosesnya.
                     throw error;
                 }
             };
 
-            // Panggil fungsi ceknya pertama kali
             setTimeout(checkStatus, 3000);
 
         } catch (err) {
@@ -73,10 +65,27 @@ export const useRouteOptimization = () => {
         }
     };
 
-    const confirm = async () => {
+    // 🌟 FUNGSI BARU: MINTA BACKEND NGITUNG ULANG URUTAN (TSP)
+    const resequenceRoute = async (draftData: any) => {
         try {
-            // 🌟 Pastiin path API confirm lu bener
-            await api.post('/api/routes/confirm', previewData); 
+            setIsOptimizing(true);
+            const response = await api.post('/api/routes/resequence', draftData);
+            setPreviewData(response.data); // Update preview data dengan hasil baru
+            toast.success("Urutan berhasil dihitung ulang!");
+            return response.data;
+        } catch (error) {
+            console.error("Gagal menghitung ulang urutan:", error);
+            toast.error("Gagal menghitung ulang urutan!");
+            throw error;
+        } finally {
+            setIsOptimizing(false);
+        }
+    };
+
+    const confirm = async (modifiedData?: any) => {
+        try {
+            const dataToSave = modifiedData || previewData;
+            await api.post('/api/routes/confirm', dataToSave); 
             setPreviewData(null); 
             return true;
         } catch (error) {
@@ -91,6 +100,7 @@ export const useRouteOptimization = () => {
         setPreviewData,
         loadingProgress,
         optimize,
+        resequenceRoute, // 🌟 EXPORT FUNGSI BARU
         confirm
     };
 };
