@@ -49,15 +49,16 @@ export interface UploadResult {
 }
 
 // ================= DROPPED =================
-
 export interface DroppedNode {
-  storeName: string;
-  weightKg: number;
-  reason: string;
+  storeName?: string;
+  nama_toko?: string; 
+  weightKg?: number;
+  berat_kg?: number; 
+  reason?: string;
+  alasan?: string;
   lat?: number;
   lon?: number;
 }
-
 // ================= SPRINT 3 & 4 (TRAFFIC & ZONING) =================
 
 export type ValidationPhase = 'idle' | 'zoning' | 'routing' | 'validating' | 'done';

@@ -1,23 +1,24 @@
 // src/features/routes/components/RouteLoadingOverlay.tsx
 import React, { useMemo } from 'react';
-import Map, { Source, Layer, Marker } from 'react-map-gl/mapbox';
+import Map, { Source, Layer } from 'react-map-gl/mapbox';
 
 interface RouteLoadingOverlayProps {
     isUploading: boolean;
     isOptimizing: boolean;
     loadingProgress: number;
-    // 🌟 FIX TS: Tambahin 'validating' di tipe datanya!
-    optimizationPhase?: 'idle' | 'zoning' | 'routing' | 'validating' | 'done';
+    // 🌟 FIX TS ERROR: Tambahin 'preview_zone' di sini biar TypeScript ga ngamuk!
+    optimizationPhase?: 'idle' | 'zoning' | 'preview_zone' | 'balancing' | 'routing' | 'matching' | 'validating' | 'done';
     zoningData?: any; 
     truckColors?: string[];
 }
 
-// ... (Isi ke bawahnya sama persis ngga usah dirubah) ...
 export default function RouteLoadingOverlay({ 
     isUploading, isOptimizing, loadingProgress, 
     optimizationPhase = 'routing', zoningData, truckColors = [] 
 }: RouteLoadingOverlayProps) {
-    if (!isUploading && !isOptimizing) return null;
+    // 🌟 FIX LOGIC: Jangan nampilin overlay ini kalau lagi di fase 'preview_zone', 
+    // karena di fase itu kita nampilin Modal Map yang beda (di RoutePlanningPage.tsx)
+    if (!isUploading && !isOptimizing && optimizationPhase !== 'zoning') return null;
 
     const geoJsonData = useMemo(() => {
         if (!zoningData || zoningData.length === 0) return null;
@@ -44,7 +45,8 @@ export default function RouteLoadingOverlay({
         return { type: 'FeatureCollection', features };
     }, [zoningData, truckColors]);
 
-    const isShowingMap = optimizationPhase === 'zoning' && geoJsonData !== null;
+    // Mapbox cuma muncul kalau udah fase zoning dan datanya ada
+    const isShowingMap = optimizationPhase === 'zoning' && geoJsonData !== null && !isUploading;
 
     return (
         <div className={`fixed inset-0 z-[99999] transition-all duration-700 ease-in-out ${isShowingMap ? 'bg-slate-900/60' : 'bg-slate-900/90'} flex flex-col items-center justify-center p-4 backdrop-blur-md overflow-hidden`}>
@@ -72,8 +74,12 @@ export default function RouteLoadingOverlay({
                     <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary border-t-transparent mb-6"></div>
                 ) : optimizationPhase === 'zoning' ? (
                     <div className="text-6xl mb-6 animate-pulse">🗺️</div>
+                ) : optimizationPhase === 'balancing' ? (
+                    <div className="text-6xl mb-6 animate-bounce">⚖️</div>
+                ) : optimizationPhase === 'matching' ? (
+                    <div className="text-6xl mb-6 animate-pulse">🤝</div>
                 ) : optimizationPhase === 'validating' ? (
-                    <div className="text-6xl mb-6 animate-ping">🛰️</div> // 🌟 FIX CTO: Icon baru buat TomTom Validation
+                    <div className="text-6xl mb-6 animate-ping">🛰️</div>
                 ) : (
                     <div className="text-6xl animate-bounce mb-6">🚚</div>
                 )}
@@ -82,18 +88,30 @@ export default function RouteLoadingOverlay({
                     {isUploading 
                         ? 'MENGUNGGAH SAP KE DATABASE...' 
                         : optimizationPhase === 'zoning'
-                            ? 'MEMETAAN WILAYAH & KLASTERISASI TOKO...'
+                            ? 'FASE 1: MEMETAAN ZONA PENGIRIMAN...'
+                        : optimizationPhase === 'balancing'
+                            ? 'FASE 2: MENYEIMBANGKAN BEBAN ZONA...'
+                        : optimizationPhase === 'routing'
+                            ? 'FASE 3: MENGHITUNG RUTE PER ZONA...'
+                        : optimizationPhase === 'matching'
+                            ? 'FASE 4: MENJODOHKAN ARMADA INTERNAL...'
                         : optimizationPhase === 'validating'
-                            ? 'MEMVALIDASI KEMACETAN TOMTOM...' // 🌟 FIX CTO: Teks waktu validasi
-                            : 'MESIN VRP MENGHITUNG RUTE TERBAIK...'}
+                            ? 'FASE 5: MEMVALIDASI KEMACETAN TOMTOM...'
+                            : 'MENYIAPKAN MANIFEST...'}
                 </h3>
 
                 {isOptimizing && (
                     <p className="text-slate-300 mb-8 text-sm animate-pulse drop-shadow-md bg-slate-900/50 px-4 py-1 rounded-full">
                         {optimizationPhase === 'zoning'
                             ? 'Menganalisis persebaran order di Jabodetabek...'
+                        : optimizationPhase === 'balancing'
+                            ? 'Menggeser toko perbatasan agar kapasitas truk muat...'
+                        : optimizationPhase === 'routing'
+                            ? 'OR-Tools mencari jarak terpendek per wilayah...'
+                        : optimizationPhase === 'matching'
+                            ? 'Mencocokkan rute terberat dengan fuso kapasitas terbesar...'
                         : optimizationPhase === 'validating'
-                            ? 'Mendeteksi potensi keterlambatan di jalan raya...' // 🌟 FIX CTO: Subteks validasi
+                            ? 'Mendeteksi potensi keterlambatan di jalan raya...'
                             : 'Memproses matriks jalan dan menyeimbangkan beban...'}
                     </p>
                 )}

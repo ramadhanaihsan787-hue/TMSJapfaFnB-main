@@ -2,12 +2,15 @@
 import requests
 import math
 import logging
+import random
+import hashlib
+import json
 
 logger = logging.getLogger(__name__)
 
 OSRM_BASE_URL = "http://157.10.161.170:5000"
 
-# 🌟 FIX CTO: KAMUS KEMACETAN JABODETABEK (SPRINT 1)
+# 🌟 KAMUS KEMACETAN JABODETABEK (SPRINT 1)
 TRAFFIC_MULTIPLIERS = {    
     (0, 5):   1.0,   # Tengah malam - pagi buta: clear    
     (5, 7):   1.15,  # Subuh - sebelum rush: sedikit padat    
@@ -24,13 +27,10 @@ def get_traffic_multiplier(departure_hour: int) -> float:
     for (start, end), mult in TRAFFIC_MULTIPLIERS.items():
         if start <= departure_hour < end:
             return mult
-    return 1.2  # Default buffer kalau tidak ketemu
+    return 1.2  
 
 def apply_traffic_to_time_matrix(time_matrix: list[list[int]], departure_hour: int) -> list[list[int]]:
-    """
-    Kalikan seluruh time matrix dengan traffic multiplier
-    berdasarkan jam keberangkatan.
-    """
+    """Kalikan seluruh time matrix dengan traffic multiplier"""
     mult = get_traffic_multiplier(departure_hour)
     logger.info(f"🚦 Jam {departure_hour}:00 -> Traffic Multiplier {mult}x diterapkan!")
     return [
@@ -105,20 +105,14 @@ def get_road_geometry(route_indices: list, locations: list) -> list:
     return []
 
 # ==========================================
-# 🌟 SPRINT 3: SPATIAL CLUSTERING & CONVEX HULL (NATIVE PYTHON)
+# 🌟 SPRINT 3: ANCHORED K-MEANS & SPATIAL CLUSTERING 
 # ==========================================
 
 def _graham_scan_convex_hull(points):
-    """
-    Mencari titik-titik terluar (polygon) yang membungkus sekumpulan koordinat.
-    Input: list of [lon, lat]
-    """
-    if len(points) <= 3:
-        return points
+    """Mencari polygon pembungkus."""
+    if len(points) <= 3: return points
 
-    # Cari titik paling bawah (kalau sama, cari yang paling kiri)
-    def polar_angle(p1, p2):
-        return math.atan2(p2[1] - p1[1], p2[0] - p1[0])
+    def polar_angle(p1, p2): return math.atan2(p2[1] - p1[1], p2[0] - p1[0])
 
     p0 = min(points, key=lambda p: (p[1], p[0]))
     points.sort(key=lambda p: (polar_angle(p0, p), (p[0]-p0[0])**2 + (p[1]-p0[1])**2))
@@ -127,7 +121,6 @@ def _graham_scan_convex_hull(points):
     for p in points:
         while len(hull) >= 2:
             p1, p2 = hull[-2], hull[-1]
-            # Cross product untuk menentukan arah belokan
             if (p2[0] - p1[0]) * (p[1] - p1[1]) - (p2[1] - p1[1]) * (p[0] - p1[0]) <= 0:
                 hull.pop()
             else:
@@ -135,30 +128,55 @@ def _graham_scan_convex_hull(points):
         hull.append(p)
     return hull
 
-def _kmeans_clustering(locations, k, max_iters=10):
+def _generate_seed_from_locations(locations):
+    sample_str = "".join([f"{loc['lat']}{loc['lon']}" for loc in locations[:5]])
+    hash_obj = hashlib.md5(sample_str.encode('utf-8'))
+    return int(hash_obj.hexdigest()[:8], 16)
+
+# 🌟 7 TITIK JANTUNG JABODETABEK (RACIKAN KUSTOM JAPFA)
+JABODETABEK_ANCHORS = [
+    {'lat': -6.2855, 'lon': 107.1465, 'name': 'Bekasi / Cikarang'},         # Zona 1: East Industrial
+    {'lat': -6.1599, 'lon': 106.9050, 'name': 'Kelapa Gading & Sekitarnya'},# Zona 2: North Urban
+    {'lat': -6.1887, 'lon': 106.7460, 'name': 'Kembangan / Jakarta Barat'}, # Zona 3: West Urban
+    {'lat': -6.3016, 'lon': 106.6520, 'name': 'Serpong / BSD'},             # Zona 4: West Suburban
+    {'lat': -6.2146, 'lon': 106.8229, 'name': 'Jakarta Pusat & Selatan'},   # Zona 5: Central & South Urban
+    {'lat': -6.5971, 'lon': 106.8060, 'name': 'Bogor'},                     # Zona 6: South Suburban
+    {'lat': -6.2253, 'lon': 106.5088, 'name': 'Tangerang Kota / Tigaraksa'} # Zona 7: West Buffer (Depot Area)
+]
+
+def _kmeans_clustering(locations, k, max_iters=20):
     """
-    Clustering sederhana Native Python untuk mengelompokkan toko berdekatan.
+    Anchored K-Means: Mulai dari 7 titik logis, lalu biarkan bergeser 
+    secara dinamis menyesuaikan orderan nyata hari ini.
     """
-    import random
     if len(locations) <= k:
         return [[loc] for loc in locations]
 
-    # Pilih K titik awal (Centroid) secara acak
-    centroids = random.sample(locations, k)
+    centroids = []
+    if k <= len(JABODETABEK_ANCHORS):
+        # Kalau butuh 7 truk atau kurang, kita tarik anchor dari database kita
+        centroids = [{'lat': a['lat'], 'lon': a['lon']} for a in JABODETABEK_ANCHORS[:k]]
+    else:
+        # Fallback misal lu tiba-tiba punya 10 truk
+        seed_val = _generate_seed_from_locations(locations)
+        random.seed(seed_val)
+        centroids = random.sample(locations, k)
+    
     clusters = []
 
-    for _ in range(max_iters):
+    for iteration in range(max_iters):
         clusters = [[] for _ in range(k)]
-        # Masukkan tiap lokasi ke centroid terdekat (Haversine)
+        # 1. Magnet menarik toko terdekat
         for loc in locations:
             distances = [calculate_haversine(loc['lat'], loc['lon'], c['lat'], c['lon']) for c in centroids]
             closest_idx = distances.index(min(distances))
             clusters[closest_idx].append(loc)
             
-        # Update posisi centroid ke tengah-tengah cluster
+        # 2. Pusat magnet bergeser menyesuaikan titik tengah toko yang ketarik
         new_centroids = []
         for cluster in clusters:
             if not cluster:
+                # Kalau ada zona yang saking sepinya kosong, ganti pake random titik toko
                 new_centroids.append(random.choice(locations))
             else:
                 avg_lat = sum(c['lat'] for c in cluster) / len(cluster)
@@ -170,28 +188,32 @@ def _kmeans_clustering(locations, k, max_iters=10):
     return clusters
 
 def generate_spatial_zones(locations: list, num_zones: int) -> list:
-    """
-    Mengelompokkan toko dan membuat kotak pembungkus (Bounding Polygon)
-    """
-    logger.info(f"🗺️ Memetakan {len(locations)} toko ke dalam {num_zones} zona spasial...")
-    
-    # Jangan masukin Depo ke dalam hitungan polygon biar kotaknya ngga narik jauh ke Cikupa
+    """Dipakai untuk Preview Animasi Polygon di Frontend"""
+    logger.info(f"🗺️ Memetakan {len(locations)} toko ke {num_zones} zona (Anchored K-Means)...")
     store_locations = [loc for loc in locations if "GUDANG" not in str(loc.get('nama_toko', '')).upper()]
-    
     clusters = _kmeans_clustering(store_locations, num_zones)
     
     zones = []
     for i, cluster in enumerate(clusters):
         if not cluster: continue
-        
         points = [[loc['lon'], loc['lat']] for loc in cluster]
-        # Bikin poligon pembungkus pakai Graham Scan
         polygon = _graham_scan_convex_hull(points)
-        
         zones.append({
             "zone_id": i + 1,
             "stores": cluster,
             "bounding_polygon": polygon
         })
-        
     return zones
+
+# ==========================================
+# 🌟 TAHAP 1 DARI MASTER PLAN: ENTRY POINT BUAT ZONE_MANAGER
+# ==========================================
+def cluster_stores_for_routing(locations: list, num_zones: int) -> list:
+    """Mengembalikan list of cluster murni untuk di-swap dan di-routing."""
+    logger.info(f"🗺️ Tahap 1: Membagi {len(locations)} toko ke dalam {num_zones} Cluster Awal (Anchored)...")
+    store_locations = [loc for loc in locations if "GUDANG" not in str(loc.get('nama_toko', '')).upper()]
+    
+    if len(store_locations) <= num_zones:
+        return [[store] for store in store_locations]
+        
+    return _kmeans_clustering(store_locations, num_zones)

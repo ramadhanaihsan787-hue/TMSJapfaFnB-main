@@ -1,11 +1,9 @@
 // src/features/routes/components/RouteDetailPanel.tsx
 import React, { useState } from "react";
 import { toast } from 'sonner'; 
-import type { RouteItem } from "../types";
 
 const formatTimeWindow = (timeStr: string | undefined, weight: number) => {
     if (!timeStr || typeof timeStr !== 'string') return "Menghitung...";
-    
     try {
         const cleanedTimeStr = timeStr.substring(0, 5);
         const parts = cleanedTimeStr.split(':');
@@ -13,7 +11,6 @@ const formatTimeWindow = (timeStr: string | undefined, weight: number) => {
         
         const h = parseInt(parts[0], 10);
         const m = parseInt(parts[1], 10);
-        
         if (isNaN(h) || isNaN(m)) return "Menghitung...";
 
         const serviceTime = 15 + ((weight || 0) / 10);
@@ -28,7 +25,7 @@ const formatTimeWindow = (timeStr: string | undefined, weight: number) => {
 };
 
 interface RouteDetailPanelProps {
-    selectedRoute: any; // Pakai any sementara biar fleksibel nerima data api
+    selectedRoute: any; 
     isFocusMode: boolean;
     onToggleFocus: () => void;
     showMapView: boolean;
@@ -36,15 +33,11 @@ interface RouteDetailPanelProps {
     mapComponent?: React.ReactNode; 
 }
 
-export default function RouteDetailPanel({ 
-    selectedRoute, 
-    isFocusMode, 
-    onToggleFocus, 
-    showMapView, 
-    onToggleMapView,
-    mapComponent 
-}: RouteDetailPanelProps) {
+export default function RouteDetailPanel({ selectedRoute, isFocusMode, onToggleFocus, showMapView, onToggleMapView, mapComponent }: RouteDetailPanelProps) {
     const [expandedStopIdx, setExpandedStopIdx] = useState<number | null>(null);
+
+    // Bikin counter manual biar urutan ngga pernah bolong
+    let displayCounter = 1;
 
     return (
         <div className="space-y-4 transition-all duration-300 h-full flex flex-col">
@@ -97,14 +90,15 @@ export default function RouteDetailPanel({
 
                                 {/* LOOPING DESTINASI */}
                                 {(selectedRoute.details || selectedRoute.detail_rute || selectedRoute.detail_perjalanan || []).map((stop: any, idx: number) => {
-                                    // Handle beda nama variabel dari backend
                                     const namaToko = stop.storeName || stop.nama_toko || stop.lokasi;
                                     const beratKg = stop.weightKg || stop.berat_kg || stop.turun_barang_kg || 0;
                                     const jamTiba = stop.arrivalTime || stop.jam_tiba || stop.jam;
                                     const items = stop.items || [];
                                     
-                                    // Skip kalo itu Start/Finish dari resequence TSP
-                                    if (namaToko === "📍 GUDANG JAPFA") return null;
+                                    if (namaToko === "📍 GUDANG JAPFA" || stop.keterangan === "Start" || stop.keterangan === "Finish") return null;
+
+                                    // Ngambil angka urut biar ngga ada yang bolong
+                                    const currentUrutan = displayCounter++;
 
                                     return (
                                         <div key={idx} className="relative pl-10 pb-10">
@@ -112,7 +106,7 @@ export default function RouteDetailPanel({
                                                 className="absolute left-[-11px] top-0 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30 ring-4 ring-white dark:ring-[#1F1F1F] cursor-pointer hover:scale-110 transition-transform"
                                                 onClick={() => setExpandedStopIdx(expandedStopIdx === idx ? null : idx)}
                                             >
-                                                <span className="text-[10px] text-white font-bold">{idx + 1}</span>
+                                                <span className="text-[10px] text-white font-bold">{currentUrutan}</span>
                                             </div>
 
                                             <div className="flex justify-between items-start cursor-pointer group" onClick={() => setExpandedStopIdx(expandedStopIdx === idx ? null : idx)}>
@@ -134,19 +128,23 @@ export default function RouteDetailPanel({
                                                 </div>
                                             </div>
 
-                                            {expandedStopIdx === idx && items && items.length > 0 && (
+                                            {expandedStopIdx === idx && (
                                                 <div className="mt-4 bg-slate-50 dark:bg-[#1A1A1A] p-4 rounded-xl border border-slate-200 dark:border-[#333] animate-in slide-in-from-top-2 fade-in duration-200">
                                                     <h5 className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2 uppercase">
                                                         <span className="material-symbols-outlined text-sm">receipt_long</span> Rincian Produk Dikirim:
                                                     </h5>
-                                                    <ul className={`grid gap-2 ${isFocusMode ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                                                        {items.map((product: any, prodIdx: number) => (
-                                                            <li key={prodIdx} className="flex justify-between items-center text-sm border-b border-slate-200 dark:border-[#333] pb-2">
-                                                                <span className="text-slate-600 dark:text-slate-300 font-medium truncate pr-2">{product.name || product.nama}</span>
-                                                                <span className="font-bold text-slate-800 dark:text-white bg-slate-100 dark:bg-[#111] px-2 py-0.5 rounded shrink-0">{product.quantity || product.qty}</span>
-                                                            </li>
-                                                        ))}
-                                                    </ul>
+                                                    {items && items.length > 0 ? (
+                                                        <ul className={`grid gap-2 ${isFocusMode ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                                                            {items.map((product: any, prodIdx: number) => (
+                                                                <li key={prodIdx} className="flex justify-between items-center text-sm border-b border-slate-200 dark:border-[#333] pb-2">
+                                                                    <span className="text-slate-600 dark:text-slate-300 font-medium truncate pr-2">{product.name || product.nama}</span>
+                                                                    <span className="font-bold text-slate-800 dark:text-white bg-slate-100 dark:bg-[#111] px-2 py-0.5 rounded shrink-0">{product.quantity || product.qty}</span>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    ) : (
+                                                        <p className="text-xs italic text-slate-400">Mode preview belum melampirkan rincian muatan per DO.</p>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
