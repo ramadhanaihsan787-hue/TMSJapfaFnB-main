@@ -1,4 +1,5 @@
-import type { RouteItem } from "../types";
+// src/features/routes/components/TruckList.tsx
+import type { RouteItem, TrafficWarning } from "../types";
 
 // 🌟 FUNGSI WARNA PINDAH KE SINI
 const getTruckColors = (loadPercent: number) => {
@@ -19,12 +20,23 @@ interface Truck3DProps {
     colorClass: string;
     isSelected: boolean;
     onClick: () => void;
+    // 🌟 SPRINT 4: Tambahin props buat warning
+    warningCount: number;
+    criticalCount: number;
 }
 
 // 🌟 KOMPONEN TRUK 3D KITA UMPETIN DI DALEM FILE INI BIAR RAPI
-const Truck3D = ({ plateNumber, driverName, truckType, zone, colorHex, percent, outerText, loadKg, colorClass, isSelected, onClick }: Truck3DProps) => {
+const Truck3D = ({ plateNumber, driverName, truckType, zone, colorHex, percent, outerText, loadKg, colorClass, isSelected, onClick, warningCount, criticalCount }: Truck3DProps) => {
     return (
-        <div onClick={onClick} className={`bg-white dark:bg-[#1F1F1F] p-4 rounded-xl shadow-sm transition-all cursor-pointer ${isSelected ? 'border-2 border-primary ring-4 ring-primary/5 shadow-md scale-[1.02]' : 'border border-slate-200 dark:border-[#333] hover:border-primary/50'}`}>
+        <div onClick={onClick} className={`bg-white dark:bg-[#1F1F1F] p-4 rounded-xl shadow-sm transition-all cursor-pointer relative overflow-visible ${isSelected ? 'border-2 border-primary ring-4 ring-primary/5 shadow-md scale-[1.02]' : 'border border-slate-200 dark:border-[#333] hover:border-primary/50'}`}>
+            
+            {/* 🌟 SPRINT 4: BADGE WARNING MACET */}
+            {warningCount > 0 && (
+                <div className={`absolute -top-3 -right-3 z-[100] flex items-center justify-center w-8 h-8 rounded-full border-2 border-white dark:border-[#1F1F1F] shadow-lg text-white text-xs font-black ${criticalCount > 0 ? 'bg-red-500 animate-pulse' : 'bg-amber-500'}`}>
+                    {warningCount}
+                </div>
+            )}
+
             <div className="flex justify-between items-start mb-3">
                 <div>
                     <div className="flex items-center gap-2">
@@ -92,17 +104,22 @@ interface TruckListProps {
     routesData: RouteItem[];
     selectedRouteId: string | null;
     onSelectRoute: (routeId: string) => void;
+    // 🌟 SPRINT 4: Tangkep props warning dari parent
+    trafficWarnings?: TrafficWarning[];
 }
 
-export default function TruckList({ routesData, selectedRouteId, onSelectRoute }: TruckListProps) {
+export default function TruckList({ routesData, selectedRouteId, onSelectRoute, trafficWarnings = [] }: TruckListProps) {
     return (
         <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 pb-10">
             {routesData.length > 0 ? (
                 routesData.map((route) => {
                     const maxCap = 2000;
-                    // MENGGUNAKAN CAMEL CASE (totalWeight, vehicle, driverName dll dari types.ts)
                     const loadPercent = Math.min(Math.round((route.totalWeight / maxCap) * 100), 100);
                     const colors = getTruckColors(loadPercent);
+                    
+                    // 🌟 Hitung total warning buat truk ini
+                    const routeWarnings = trafficWarnings.filter(w => w.truck_id === route.routeId);
+                    const criticalWarnings = routeWarnings.filter(w => w.severity === 'HIGH');
                     
                     return (
                         <Truck3D
@@ -118,6 +135,8 @@ export default function TruckList({ routesData, selectedRouteId, onSelectRoute }
                             colorClass={colors.class}
                             isSelected={selectedRouteId === route.routeId}
                             onClick={() => onSelectRoute(route.routeId)}
+                            warningCount={routeWarnings.length}
+                            criticalCount={criticalWarnings.length}
                         />
                     );
                 })

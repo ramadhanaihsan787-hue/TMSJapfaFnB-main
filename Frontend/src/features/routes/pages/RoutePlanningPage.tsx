@@ -14,7 +14,6 @@ import RouteMap from "../components/RouteMap";
 import RouteLoadingOverlay from "../components/RouteLoadingOverlay";
 import UploadVerificationModal from "../components/UploadVerificationModal";
 import RoutePreviewModal from "../components/RoutePreviewModal";
-// 🌟 FIX CTO: JANGAN LUPA IMPORT MODAL DISPATCH-NYA!
 import RouteDispatchModal from "../components/RouteDispatchModal";
 
 import { useHeaderStore } from "../../../store/useHeaderStore";
@@ -41,8 +40,12 @@ export default function RoutePlanningPage() {
         updateTime, saveCoord, updateWeight, updateSuccessCoord 
     } = useUpload();
     
-    // 🌟 FIX CTO: Tarik resequenceRoute dari hook!
-    const { isOptimizing, previewData, setPreviewData, loadingProgress, optimize, confirm, resequenceRoute } = useRouteOptimization();
+    // 🌟 FIX CTO: Tarik data zoning dan phase-nya
+    const { 
+        isOptimizing, previewData, setPreviewData, loadingProgress, 
+        optimizationPhase, zoningData, // <-- INI YANG BARU DARI SPRINT 3
+        optimize, confirm, resequenceRoute 
+    } = useRouteOptimization();
 
     useEffect(() => {
         fetchRoutes(selectedDate);
@@ -82,10 +85,14 @@ export default function RoutePlanningPage() {
     return (
         <div className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 dark:bg-[#0A0A0A]">
 
+            {/* 🌟 FIX CTO: Passing phase & zoningData ke Overlay */}
             <RouteLoadingOverlay 
                 isUploading={isUploading} 
                 isOptimizing={isOptimizing} 
                 loadingProgress={loadingProgress} 
+                optimizationPhase={optimizationPhase}
+                zoningData={zoningData}
+                truckColors={truckColors}
             />
 
             {showVerificationModal && uploadReport && (
@@ -125,7 +132,7 @@ export default function RoutePlanningPage() {
                     draftData={dispatchData}
                     isSaving={isSavingRoute}
                     onBack={() => setDispatchData(null)}
-                    onConfirmSave={async (finalDataWithKru: any) => { // 🌟 FIX CTO: Kasih tipe any biar TS ga bawel
+                    onConfirmSave={async (finalDataWithKru: any) => { 
                         setIsSavingRoute(true);
                         try {
                             await confirm(finalDataWithKru);
@@ -145,6 +152,7 @@ export default function RoutePlanningPage() {
             )}
 
             <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+                {/* ... (Isi bawahnya ngga ada yang dirubah, biarin aja) ... */}
                 <RouteToolbar 
                     selectedDate={selectedDate}
                     onDateChange={setSelectedDate}

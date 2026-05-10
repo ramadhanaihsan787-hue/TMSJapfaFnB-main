@@ -1,12 +1,19 @@
+import React from 'react';
 import type { DriverPerformance } from '../types';
-import DriverTableRow from './DriverTableRow';
 
 interface DriverPerformanceTableProps {
     loading: boolean;
-    drivers: DriverPerformance[];
+    drivers: any[]; // Pakai any sementara biar kebal dari perbedaan format API
 }
 
 export default function DriverPerformanceTable({ loading, drivers }: DriverPerformanceTableProps) {
+    
+    // 🌟 FIX CTO: Bikin pembuat avatar otomatis yang kebal error (anti .split crash)
+    const getAvatar = (name: string) => {
+        const safeName = (name || "Driver").replace(/\s/g, '+');
+        return `https://ui-avatars.com/api/?name=${safeName}&background=0D8ABC&color=fff`;
+    };
+
     return (
         <div className="bg-white dark:bg-[#111111] rounded-xl border border-slate-200 dark:border-[#333] shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 dark:border-[#333] flex items-center justify-between">
@@ -33,9 +40,38 @@ export default function DriverPerformanceTable({ loading, drivers }: DriverPerfo
                                 <td colSpan={4} className="px-6 py-8 text-center text-slate-500">No driver data available yet.</td>
                             </tr>
                         ) : (
-                            drivers.map((driver, index) => (
-                                <DriverTableRow key={index} driver={driver} />
-                            ))
+                            drivers.map((driver, index) => {
+                                // 🌟 Jembatan data: Antisipasi nama variabel beda dari Backend
+                                const name = driver.name || driver.driverName || driver.nama_supir || "Unknown Driver";
+                                const trips = driver.totalTrips || driver.trips || driver.total_rute || 0;
+                                const onTime = driver.onTimeRate || driver.ontime || driver.on_time_rate || "0%";
+                                const fuel = driver.fuelRating || driver.fuel_economy || driver.rating_bbm || "-";
+                                const avatar = driver.avatar || getAvatar(name);
+
+                                return (
+                                    <tr key={index} className="hover:bg-slate-50 dark:hover:bg-[#1a1a1a] transition-colors">
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <img src={avatar} alt={name} className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700" />
+                                                <span className="font-bold text-slate-800 dark:text-white">{name}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className="text-slate-600 dark:text-slate-300 font-medium">{trips} Trips</span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`font-bold ${parseFloat(onTime) >= 90 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-500'}`}>
+                                                {onTime}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded font-bold text-xs">
+                                                {fuel}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                );
+                            })
                         )}
                     </tbody>
                 </table>

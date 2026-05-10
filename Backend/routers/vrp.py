@@ -1,3 +1,4 @@
+# Backend/routers/vrp.py
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -12,13 +13,14 @@ from database import SessionLocal
 import models
 import schemas
 from services import vrp_solver, map_service
-from utils.helpers import time_str_to_minutes, menit_ke_jam, classify_store
+# 🌟 FIX CTO: Jangan lupa import consolidate_orders
+from utils.helpers import time_str_to_minutes, menit_ke_jam, classify_store, consolidate_orders
 from dependencies import get_db, get_settings, get_current_user, require_role
+from services import traffic_validator
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["VRP & Route Planning"])
 
-# 🌟 TEMPAT PENYIMPANAN SEMENTARA HASIL VRP (IN-MEMORY CACHE)
 VRP_JOBS = {}
 
 # ==========================================
@@ -50,30 +52,48 @@ def run_vrp_optimization_task(job_id: str, preview: bool):
         active_count = min(ideal_trucks, len(vehicles))
         vehicle_capacities = [int(vehicles[i].capacity_kg * CAP_BUFFER) for i in range(active_count)]
         
+        # 🌟 FIX CTO (SPRINT CONSOLIDATION): Tumpuk pesanan yang se-lokasi!
+        grouped_orders = consolidate_orders(pending_orders)
+        
         locations   = [{"lat": DEPO_LAT, "lon": DEPO_LON}]
         demands     = [0]
         is_mall     = [False]
         time_windows = [(START_MINUTE, END_MINUTE)]
-        node_to_order = {}
+        node_to_orders = {}
 
-        for idx, order in enumerate(pending_orders):
-            locations.append({"lat": float(order.latitude), "lon": float(order.longitude)})
-            demands.append(int(order.weight_total))
+        node_counter = 1
+        for key, orders in grouped_orders.items():
+            first_order = orders[0]
+            locations.append({"lat": float(first_order.latitude), "lon": float(first_order.longitude)})
             
-            nama_toko = order.customer.store_name if order.customer else "Toko"
+            # Gabungin total berat semua DO di lokasi ini
+            total_node_weight = sum(int(o.weight_total) for o in orders)
+            demands.append(total_node_weight)
+            
+            nama_toko = first_order.customer.store_name if first_order.customer else "Toko"
             is_mall.append(classify_store(nama_toko)) 
             
-            tw_start = order.delivery_window_start or START_MINUTE
-            tw_end   = order.delivery_window_end   or END_MINUTE
+            # Cari jam buka paling akhir dan jam tutup paling awal dari semua DO
+            tw_start = max((o.delivery_window_start or START_MINUTE) for o in orders)
+            tw_end   = min((o.delivery_window_end or END_MINUTE) for o in orders)
             time_windows.append((tw_start, tw_end))
-            node_to_order[idx + 1] = order
+            
+            node_to_orders[node_counter] = orders
+            node_counter += 1
 
-        distance_matrix, time_matrix = map_service.build_osrm_matrix(locations)
+        distance_matrix, raw_time = map_service.build_osrm_matrix(locations)
         
         if distance_matrix is None:  
-            distance_matrix, time_matrix = map_service.build_haversine_matrix(locations)
+            distance_matrix, raw_time = map_service.build_haversine_matrix(locations)
 
         matrix_km = [[int(d / 1000) for d in row] for row in distance_matrix]
+
+        try:
+            departure_hour = int(settings.vrp_start_time.split(":")[0]) 
+        except:
+            departure_hour = 7 
+            
+        time_matrix = map_service.apply_traffic_to_time_matrix(raw_time, departure_hour)
 
         hasil_vrp = vrp_solver.solve_vrp(
             matrix_km, time_matrix, demands, len(vehicle_capacities), vehicle_capacities,
@@ -103,7 +123,6 @@ def run_vrp_optimization_task(job_id: str, preview: bool):
             total_dist_m = sum(distance_matrix[route_indices[i]][route_indices[i + 1]] for i in range(len(route_indices) - 1))
             total_km = round(total_dist_m / 1000.0, 1)
 
-            # 🌟 PENTING: Karena ini preview/awal, driver_id bisa None dulu atau pakai default
             new_plan = models.TMSRoutePlan(
                 route_id=route_id, planning_date=today, vehicle_id=vehicle.vehicle_id,
                 driver_id=vehicle.default_driver_id, helper_id=vehicle.co_driver_id, 
@@ -114,6 +133,8 @@ def run_vrp_optimization_task(job_id: str, preview: bool):
             route_geometry = map_service.get_road_geometry(route_indices, locations)
             
             manifest, total_muatan, current_time, prev_node = [], 0, START_MINUTE, 0
+            
+            global_seq = 0 # 🌟 FIX CTO: Sequence Global untuk tiap manifest DO
 
             for step, node_idx in enumerate(route_indices):
                 assigned_nodes.add(node_idx)
@@ -123,13 +144,14 @@ def run_vrp_optimization_task(job_id: str, preview: bool):
                     if step != 0: current_time += time_matrix[prev_node][node_idx]
                     prev_node = node_idx
                     manifest.append({
-                        "urutan": step, "lokasi": "📍 GUDANG JAPFA", 
+                        "urutan": global_seq, "lokasi": "📍 GUDANG JAPFA", 
                         "jam": str(menit_ke_jam(current_time)),
                         "keterangan": "Start" if step == 0 else "Finish", "lat": DEPO_LAT, "lon": DEPO_LON, "distance_from_prev_km": seg_km
                     })
+                    global_seq += 1
                     continue
 
-                order = node_to_order[node_idx]
+                orders_in_node = node_to_orders[node_idx]
                 total_muatan += demands[node_idx]
                 current_time += time_matrix[prev_node][node_idx]
                 if current_time < time_windows[node_idx][0]: current_time = time_windows[node_idx][0]
@@ -137,16 +159,24 @@ def run_vrp_optimization_task(job_id: str, preview: bool):
                 service_time = 60 + (demands[node_idx] / 10.0) if is_mall[node_idx] else BASE_DROP + (demands[node_idx] * VAR_DROP / 10.0)
                 est_arrival = menit_ke_jam(current_time)
                 
-                if not preview:
-                    db.add(models.TMSRouteLine(route_id=route_id, order_id=order.order_id, sequence=step, est_arrival=est_arrival, distance_from_prev_km=seg_km))
-                    order.status = models.DOStatus.do_assigned_to_route
+                # 🌟 SPRINT CONSOLIDATION: Urai balik 1 Titik Kunjungan jadi beberapa Resi DO!
+                for sub_idx, order in enumerate(orders_in_node):
+                    curr_seg_km = seg_km if sub_idx == 0 else 0 # Jarak jadi 0 kalau masih di toko yang sama
+                    
+                    if not preview:
+                        db.add(models.TMSRouteLine(route_id=route_id, order_id=order.order_id, sequence=global_seq, est_arrival=est_arrival, distance_from_prev_km=curr_seg_km))
+                        order.status = models.DOStatus.do_assigned_to_route
 
-                manifest.append({
-                    "urutan": step, "nomor_do": order.order_id, 
-                    "nama_toko": order.customer.store_name if order.customer else "Toko", 
-                    "turun_barang_kg": round(demands[node_idx], 2), "jam_tiba": str(est_arrival),
-                    "lat": float(order.latitude), "lon": float(order.longitude), "distance_from_prev_km": seg_km
-                })
+                    manifest.append({
+                        "urutan": global_seq, "nomor_do": order.order_id, 
+                        "nama_toko": order.customer.store_name if order.customer else "Toko", 
+                        "turun_barang_kg": round(float(order.weight_total), 2), "jam_tiba": str(est_arrival),
+                        "lat": float(order.latitude), "lon": float(order.longitude), "distance_from_prev_km": curr_seg_km,
+                        "tw_end": time_windows[node_idx][1],
+                        "is_mall": is_mall[node_idx]
+                    })
+                    global_seq += 1
+
                 current_time += service_time
                 prev_node = node_idx
 
@@ -157,20 +187,23 @@ def run_vrp_optimization_task(job_id: str, preview: bool):
 
             formatted_routes.append({
                 "route_id": route_id, "armada": vehicle.license_plate,
-                # Frontend yang bakal ngatur ini ntar pas Dispatching Modal
                 "driver_id": vehicle.default_driver_id,
                 "helper_id": vehicle.co_driver_id,
                 "total_muatan_kg": total_muatan, "total_jarak_km": total_km,
                 "detail_perjalanan": manifest, "garis_aspal": route_geometry
             })
 
-        dropped = [{
-            "nama_toko": node_to_order[n].customer.store_name if node_to_order[n].customer else "Toko", 
-            "berat_kg": node_to_order[n].weight_total, 
-            "lat": float(node_to_order[n].latitude), 
-            "lon": float(node_to_order[n].longitude), 
-            "alasan": "Kapasitas Penuh"
-        } for n in range(1, len(locations)) if n not in assigned_nodes]
+        dropped = []
+        for n in range(1, len(locations)):
+            if n not in assigned_nodes:
+                for order in node_to_orders[n]:
+                    dropped.append({
+                        "nama_toko": order.customer.store_name if order.customer else "Toko", 
+                        "berat_kg": float(order.weight_total), 
+                        "lat": float(order.latitude), 
+                        "lon": float(order.longitude), 
+                        "alasan": "Kapasitas Penuh"
+                    })
 
         if preview: db.rollback()
         else: db.commit()
@@ -297,7 +330,6 @@ def resequence_routes(payload: dict, db: Session = Depends(get_db)):
                     
                 prev_node = node_idx
             
-            # 🌟 FIX CTO: TAMBAHIN TITIK KEMBALI KE DEPO DI AKHIR URUTAN
             est_finish_m = dist_mat[prev_node][0] if dist_mat else 0
             est_finish_km = round(est_finish_m / 1000.0, 1)
             
@@ -310,7 +342,6 @@ def resequence_routes(payload: dict, db: Session = Depends(get_db)):
                 "keterangan": "Finish", "lat": DEPO_LAT, "lon": DEPO_LON, "distance_from_prev_km": est_finish_km
             })
                 
-            # 🌟 UPDATE PETA ASPAL (best_indices ditambahin 0 di akhir biar balik ke depo)
             route_geometry = map_service.get_road_geometry(best_indices + [0], locations)
             truk["garis_aspal"] = route_geometry
             truk["detail_perjalanan"] = new_manifest
@@ -372,7 +403,6 @@ def get_routes(
 
 @router.post("/routes/confirm", response_model=schemas.ConfirmRouteResponse)
 def confirm_routes(payload: dict, db: Session = Depends(get_db), current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))):
-    """Menerima data yang sudah Divalidasi Kru-nya dari Frontend Modal Dispatching"""
     try:
         today = datetime.datetime.now().date()
         for rute in db.query(models.TMSRoutePlan).filter(models.TMSRoutePlan.planning_date == today).all():
@@ -385,7 +415,6 @@ def confirm_routes(payload: dict, db: Session = Depends(get_db), current_user: m
             vehicle = db.query(models.FleetVehicle).filter(models.FleetVehicle.license_plate == nopol).first()
             if not vehicle: continue
 
-            # 🌟 LOGIC BARU: AMBIL ID SUPIR & HELPER LANGSUNG DARI KIRIMAN FRONTEND
             drv_id = truk.get("driver_id")
             hlp_id = truk.get("helper_id")
 
@@ -394,7 +423,7 @@ def confirm_routes(payload: dict, db: Session = Depends(get_db), current_user: m
 
             new_plan = models.TMSRoutePlan(
                 route_id=truk["route_id"], planning_date=today, vehicle_id=vehicle.vehicle_id,
-                driver_id=drv_id, helper_id=hlp_id, # Masukin Helper ID ke tabel
+                driver_id=drv_id, helper_id=hlp_id, 
                 total_weight=truk.get("total_muatan_kg", 0), total_distance_km=truk.get("total_jarak_km", 0)
             )
             db.add(new_plan)
@@ -446,3 +475,83 @@ def get_load_plan(route_id: str, db: Session = Depends(get_db), current_user: mo
     result = [{"truck": b.name, "truck_dimensions": {"w": truck_w, "h": truck_h, "d": truck_d}, "total_weight_loaded": float(b.get_total_weight()), "3d_layout_data": [{"item_name": item.name, "position_xyz": [float(item.position[0]), float(item.position[1]), float(item.position[2])], "dimensions_whd": [float(item.width), float(item.height), float(item.depth)], "rotation": item.rotation_type} for item in b.items], "unfitted_items": [item.name for item in b.unfitted_items]} for b in packer.bins]
     
     return {"status": "success", "data": result}
+
+# ==========================================
+# 5. ENDPOINT VALIDASI MACET (SPRINT 4)
+# ==========================================
+TRAFFIC_JOBS = {}
+
+@router.post("/routes/validate-traffic/{job_id}")
+def start_traffic_validation(
+    job_id: str, background_tasks: BackgroundTasks,
+    current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))
+):
+    """Trigger Phase 4: Validasi rute dengan TomTom traffic API."""
+    vrp_result = VRP_JOBS.get(job_id)
+    if not vrp_result or vrp_result["status"] != "completed":
+        raise HTTPException(400, "VRP belum selesai atau job tidak ditemukan")
+    
+    TRAFFIC_JOBS[job_id] = {"status": "processing"}
+    background_tasks.add_task(_run_traffic_validation, job_id, vrp_result)
+    return {"status": "success", "message": "Traffic validation dimulai"}
+
+def _run_traffic_validation(job_id: str, vrp_result: dict):
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    routes = vrp_result["data"]["jadwal_truk_internal"]
+    all_warnings = []
+    
+    for route in routes:
+        result = traffic_validator.validate_route_traffic(route, today)
+        all_warnings.extend(result.get("warnings", []))
+    
+    TRAFFIC_JOBS[job_id] = {
+        "status": "completed",
+        "total_warnings": len(all_warnings),
+        "critical_count": sum(1 for w in all_warnings if w["severity"] == "HIGH"),
+        "warnings": all_warnings,
+    }
+
+@router.get("/routes/validate-traffic/{job_id}/status")
+def get_traffic_validation_status(job_id: str):
+    return TRAFFIC_JOBS.get(job_id, {"status": "not_found"})
+
+# ==========================================
+# 🌟 SPRINT 3: ENDPOINT SPATIAL PREVIEW (ZONING KOTAK)
+# ==========================================
+@router.post("/routes/spatial-preview")
+def preview_spatial_zones(
+    preview: bool = False,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))
+):
+    try:
+        pending_orders = db.query(models.DeliveryOrder).filter(models.DeliveryOrder.status == models.DOStatus.do_verified).all()
+        if not pending_orders:
+            raise HTTPException(status_code=400, detail="Tidak ada order terverifikasi.")
+
+        vehicles = db.query(models.FleetVehicle).filter(models.FleetVehicle.status == "Available").all()
+        total_berat = sum(int(o.weight_total) for o in pending_orders)
+        ideal_trucks = (total_berat // 2000) + 2
+        active_count = min(ideal_trucks, len(vehicles))
+        if active_count < 1: active_count = 1
+
+        locations = []
+        for order in pending_orders:
+            locations.append({
+                "nama_toko": order.customer.store_name if order.customer else "Toko",
+                "lat": float(order.latitude),
+                "lon": float(order.longitude),
+                "berat": float(order.weight_total)
+            })
+
+        zoning_data = map_service.generate_spatial_zones(locations, num_zones=active_count)
+
+        return {
+            "status": "success",
+            "message": "Zona Spasial berhasil dibuat.",
+            "data": zoning_data
+        }
+        
+    except Exception as e:
+        logger.error(f"🚨 [SPATIAL ZONING ERROR]: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

@@ -29,6 +29,9 @@ export default function DriverTableRow({ driver, isExpanded, onToggle }: DriverT
         }
     };
 
+    // 🌟 FIX CTO: Fallback Avatar biar ngga error split kalau nama/avatar null
+    const safeAvatar = driver?.avatar || `https://ui-avatars.com/api/?name=${(driver?.name || "Driver").replace(/\s/g, '+')}&background=0D8ABC&color=fff`;
+
     return (
         <React.Fragment>
             <tr 
@@ -38,24 +41,24 @@ export default function DriverTableRow({ driver, isExpanded, onToggle }: DriverT
                 <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-lg overflow-hidden shrink-0 border border-slate-200 dark:border-[#444]">
-                            <img className="h-full w-full object-cover" src={driver.avatar} alt={driver.name} />
+                            <img className="h-full w-full object-cover" src={safeAvatar} alt={driver?.name || 'Driver'} />
                         </div>
                         <div>
-                            <p className="font-bold text-slate-900 dark:text-white">{driver.name}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">{driver.id}</p>
+                            <p className="font-bold text-slate-900 dark:text-white">{driver?.name || 'Supir Tanpa Nama'}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">{driver?.id || '-'}</p>
                         </div>
                     </div>
                 </td>
                 <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${getStatusStyle(driver.status)}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${getStatusIndicator(driver.status)}`}></span>
-                        {driver.status}
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${getStatusStyle(driver?.status || 'Offline')}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${getStatusIndicator(driver?.status || 'Offline')}`}></span>
+                        {driver?.status || 'Offline'}
                     </span>
                 </td>
                 <td className="px-6 py-4">
                     <div className="flex items-center gap-1.5">
-                        <span className={`material-symbols-outlined text-lg ${driver.score >= 90 ? 'text-amber-500' : 'text-slate-300'}`} style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
-                        <span className="font-bold text-slate-800 dark:text-white">{driver.score}</span>
+                        <span className={`material-symbols-outlined text-lg ${driver?.score >= 90 ? 'text-amber-500' : 'text-slate-300'}`} style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
+                        <span className="font-bold text-slate-800 dark:text-white">{driver?.score || '-'}</span>
                         <span className="text-xs text-slate-400 dark:text-slate-500">/100</span>
                     </div>
                 </td>
@@ -63,19 +66,18 @@ export default function DriverTableRow({ driver, isExpanded, onToggle }: DriverT
                     <div className="space-y-1.5">
                         <div className="flex items-center gap-2 text-xs">
                             <span className="text-slate-400 dark:text-slate-500 w-20">On-time:</span>
-                            <span className="font-semibold text-slate-700 dark:text-slate-300">{driver.ontime}</span>
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">{driver?.ontime || '-'}</span>
                         </div>
                         <div className="flex items-center gap-2 text-xs">
                             <span className="text-slate-400 dark:text-slate-500 w-20">DO Success:</span>
-                            <span className="font-bold text-emerald-600 dark:text-emerald-400">{driver.doSuccess}</span>
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400">{driver?.doSuccess || '0'}</span>
                         </div>
                     </div>
                 </td>
                 <td className="px-6 py-4 text-sm font-mono font-bold text-slate-700 dark:text-slate-300">
-                    {driver.truck}
+                    {driver?.truck || '-'}
                 </td>
                 <td className="px-6 py-4 text-right">
-                    {/* 🌟 FIX CTO: Ganti alert jadi toast.info */}
                     <button onClick={(e) => { e.stopPropagation(); toast.info('Menu aksi Driver segera hadir!'); }} className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-400 dark:text-slate-500 transition-colors">
                         <span className="material-symbols-outlined text-lg">more_vert</span>
                     </button>

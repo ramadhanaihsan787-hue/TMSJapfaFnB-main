@@ -3,7 +3,6 @@ from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 import logging
 
-# 🌟 FIX CTO: Setup Logger
 logger = logging.getLogger(__name__)
 
 def solve_vrp(distance_matrix, time_matrix, demands,
@@ -12,6 +11,7 @@ def solve_vrp(distance_matrix, time_matrix, demands,
               base_drop_time, var_drop_time):
     """
     Mesin AI VRP dengan Kapasitas, Jendela Waktu, dan SMART BALANCING.
+    🌟 SPRINT 2: HARD & SOFT TIME WINDOWS IMPLEMENTED!
     """
     data = {}
     data['distance_matrix'] = distance_matrix
@@ -89,22 +89,40 @@ def solve_vrp(distance_matrix, time_matrix, demands,
     routing.AddDimension(
         time_callback_index,
         60,  
-        1200, 
+        1440, # 🌟 Mesti dilebarin jadi 24 jam biar soft window bisa bablas
         False, 
         'Time'
     )
     time_dimension = routing.GetDimensionOrDie('Time')
 
+    # 🌟 FIX CTO SPRINT 2: APPLY HARD/SOFT TIME WINDOW
     for location_idx, time_window in enumerate(data['time_windows']):
-        if location_idx == data['depot']: continue
+        if location_idx == data['depot']: 
+            continue
+            
         index = manager.NodeToIndex(location_idx)
-        time_dimension.CumulVar(index).SetRange(time_window[0], time_window[1])
+        tw_start, tw_end = time_window
+        
+        is_hard = is_mall_list[location_idx]
+        
+        if is_hard:
+            # MALL/SUPERMARKET: Wajib on-time atau di-drop
+            time_dimension.CumulVar(index).SetRange(tw_start, tw_end)
+        else:
+            # WARUNG/AGEN: Boleh telat, dikasih slack, tapi bayar denda mahal
+            # Diizinin dateng maksimal jam 12 malem (1440)
+            time_dimension.CumulVar(index).SetRange(data['time_windows'][0][0], 1440)
+            
+            # Setiap menit keterlambatan dihukum penalty 500
+            slack_penalty = 500 
+            time_dimension.SetCumulVarSoftUpperBound(index, tw_end, slack_penalty)
 
+    # Depot Start & End constraint (biar konsisten pulangnya)
     for vehicle_id in range(data['num_vehicles']):
         index = routing.Start(vehicle_id)
         time_dimension.CumulVar(index).SetRange(data['time_windows'][0][0], data['time_windows'][0][1])
         index = routing.End(vehicle_id)
-        time_dimension.CumulVar(index).SetRange(data['time_windows'][0][0], data['time_windows'][0][1])
+        time_dimension.CumulVar(index).SetRange(data['time_windows'][0][0], 1440) # Truk boleh pulang telat
 
     for i in range(data['num_vehicles']):
         routing.AddVariableMinimizedByFinalizer(time_dimension.CumulVar(routing.Start(i)))
@@ -116,6 +134,7 @@ def solve_vrp(distance_matrix, time_matrix, demands,
     for i in range(data['num_vehicles']):
         routing.SetFixedCostOfVehicle(1000, i) 
 
+    # Penalty kalau toko terpaksa harus di-drop
     penalty = 100000 
     for node in range(1, len(data['distance_matrix'])):
         routing.AddDisjunction([manager.NodeToIndex(node)], penalty)
@@ -123,7 +142,7 @@ def solve_vrp(distance_matrix, time_matrix, demands,
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()
     search_parameters.first_solution_strategy = (routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC)
     search_parameters.local_search_metaheuristic = (routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
-    search_parameters.time_limit.seconds = 60
+    search_parameters.time_limit.seconds = 60 # Sesuai aslinya lu 60 detik
 
     logger.info("OR-Tools: Memulai kalkulasi VRP Smart Balancing...")
     solution = routing.SolveWithParameters(search_parameters)
@@ -137,7 +156,7 @@ def solve_vrp(distance_matrix, time_matrix, demands,
                 node_index = manager.IndexToNode(index)
                 route.append(node_index)
                 index = solution.Value(routing.NextVar(index))
-            route.append(manager.IndexToNode(index))
+            route.append(manager.IndexToNode(index)) # Append last node (Depot)
             results['routes'].append(route)
             
         for node in range(1, len(data['distance_matrix'])):

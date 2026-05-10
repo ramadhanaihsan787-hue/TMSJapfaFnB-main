@@ -454,6 +454,40 @@ class LoadPlanResponse(BaseModel):
     status: str = "success"
     data: List[Dict[str, Any]]
 
+# 🌟 FIX CTO (SPRINT 3 & 4): SCHEMA ZONING DAN TRAFFIC VALIDATOR
+class SpatialZoneStore(BaseModel):
+    nama_toko: str
+    lat: float
+    lon: float
+    berat: float
+
+class SpatialZone(BaseModel):
+    zone_id: int
+    stores: List[SpatialZoneStore]
+    bounding_polygon: List[List[float]]
+
+class SpatialPreviewResponse(BaseModel):
+    status: str = "success"
+    message: str
+    data: List[SpatialZone]
+
+class TrafficWarning(BaseModel):
+    stop_order: int
+    store_name: str
+    planned_eta: str
+    real_eta_traffic: str
+    delay_minutes: int
+    severity: str # "HIGH" or "LOW"
+    truck_id: str
+    armada: str
+
+class TrafficValidationResponse(BaseModel):
+    status: str
+    total_warnings: int
+    critical_count: int
+    warnings: List[TrafficWarning]
+
+
 # ==========================================
 # 🔐 AUTHENTICATION SCHEMAS
 # ==========================================

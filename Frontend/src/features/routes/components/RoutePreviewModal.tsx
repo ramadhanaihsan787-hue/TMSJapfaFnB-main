@@ -1,6 +1,6 @@
 // src/features/routes/components/RoutePreviewModal.tsx
-import React, { useState, useRef, useEffect } from "react";
-import Map, { Marker, Popup } from 'react-map-gl/mapbox';
+import { useState, useRef, useEffect, useMemo } from "react"; 
+import Map, { Marker, Popup, Source, Layer } from 'react-map-gl/mapbox'; 
 import type { MapRef } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { toast } from 'sonner';
@@ -8,13 +8,13 @@ import { toast } from 'sonner';
 interface RoutePreviewModalProps {
     previewData: any; 
     truckColors: string[];
+    zoningData?: any; 
     onCancel: () => void;
     onProceedDispatch: (draft: any) => void;    
-    onResequence?: (draftData: any) => Promise<void>; 
+    onResequence?: (draftData: any) => Promise<any>; 
 }
 
-// 🌟 FIX CTO: onConfirmSave diganti jadi onProceedDispatch di destruct object
-export default function RoutePreviewModal({ previewData, truckColors, onCancel, onProceedDispatch, onResequence }: RoutePreviewModalProps) {
+export default function RoutePreviewModal({ previewData, truckColors, zoningData, onCancel, onProceedDispatch, onResequence }: RoutePreviewModalProps) {
     const mapRef = useRef<MapRef>(null);
     const [viewState, setViewState] = useState({ longitude: 106.479163, latitude: -6.207356, zoom: 10 });
     
@@ -32,6 +32,35 @@ export default function RoutePreviewModal({ previewData, truckColors, onCancel, 
     
     const [draggedItem, setDraggedItem] = useState<{tIdx: number, sIdx: number} | null>(null);
     const [dragOverTruck, setDragOverTruck] = useState<number | null>(null);
+
+    // 🌟 SPRINT 4: Ekstrak Traffic Warnings biar gampang dicari
+    const trafficWarnings = useMemo(() => {
+        if (!previewData?.traffic_warnings) return {};
+        const warningsMap: any = {};
+        previewData.traffic_warnings.forEach((w: any) => {
+            warningsMap[`${w.truck_id}_${w.store_name}`] = w;
+        });
+        return warningsMap;
+    }, [previewData]);
+
+    // 🌟 SPRINT 3: Bikin GeoJSON dari data Zoning Backend biar Kotak muncul!
+    const zoningGeoJSON = useMemo(() => {
+        if (!zoningData || zoningData.length === 0) return null;
+
+        const features: any[] = [];
+        zoningData.forEach((zone: any, i: number) => {
+            const color = truckColors[i % truckColors.length] || '#3b82f6';
+            if (zone.bounding_polygon && zone.bounding_polygon.length >= 3) {
+                const polyCoords = [...zone.bounding_polygon, zone.bounding_polygon[0]];
+                features.push({
+                    type: 'Feature',
+                    properties: { color, type: 'polygon' },
+                    geometry: { type: 'Polygon', coordinates: [polyCoords] }
+                });
+            }
+        });
+        return { type: 'FeatureCollection', features };
+    }, [zoningData, truckColors]);
 
     const handleMoveStop = (fromTrukIdx: number, toTrukIdx: number, stopIdx: number) => {
         if (fromTrukIdx === toTrukIdx) return;
@@ -56,7 +85,13 @@ export default function RoutePreviewModal({ previewData, truckColors, onCancel, 
         if(!onResequence) return;
         setIsResequencing(true);
         try {
-            await onResequence(draftData);
+            const updatedData = await onResequence(draftData);
+            if (updatedData) {
+                setDraftData(JSON.parse(JSON.stringify(updatedData)));
+                setIsDirty(false);
+            }
+        } catch (error) {
+            // Error ditangkep sonner
         } finally {
             setIsResequencing(false);
         }
@@ -102,27 +137,40 @@ export default function RoutePreviewModal({ previewData, truckColors, onCancel, 
                         mapStyle="mapbox://styles/mapbox/dark-v11" 
                         mapboxAccessToken={import.meta.env.VITE_MAPBOX_TOKEN}
                     >
+                        {/* 🌟 MUNCULIN KOTAK ZONASI (CONVEX HULL) DI MAP PREVIEW */}
+                        {zoningGeoJSON && (
+                            <Source id="zoning-preview" type="geojson" data={zoningGeoJSON as any}>
+                                <Layer id="zone-preview-fill" type="fill" paint={{ 'fill-color': ['get', 'color'], 'fill-opacity': 0.05 }} />
+                                <Layer id="zone-preview-line" type="line" paint={{ 'line-color': ['get', 'color'], 'line-width': 2, 'line-dasharray': [4, 4], 'line-opacity': 0.5 }} />
+                            </Source>
+                        )}
+
                         {draftData.jadwal_truk_internal?.map((truk: any, i: number) => {
                             const color = truckColors[i % truckColors.length];
                             if (activePreviewTruck !== null && activePreviewTruck !== i) return null;
 
                             return (
-                                <React.Fragment key={i}>
+                                <div key={i}>
                                     {truk.detail_perjalanan.map((stop: any, j: number) => {
-                                        if (stop.urutan === 0) return null; 
+                                        if (stop.urutan === 0 || stop.keterangan === "Start" || stop.keterangan === "Finish" || stop.lokasi === "📍 GUDANG JAPFA") return null;
+
+                                        // Cek apakah toko ini kena warning macet
+                                        const warning = trafficWarnings[`${truk.route_id}_${stop.nama_toko}`];
+                                        const isHighRisk = warning?.severity === 'HIGH';
+
                                         return (
                                             <Marker key={`${i}-${j}`} longitude={stop.lon} latitude={stop.lat} anchor="center">
                                                 <div 
                                                     onClick={(e) => { e.stopPropagation(); setSelectedStopPopup({tIdx: i, sIdx: j, stop}); }}
-                                                    className="cursor-pointer hover:scale-110 transition-transform flex items-center justify-center text-white font-bold text-[10px] shadow-lg"
-                                                    style={{ backgroundColor: color, width: '28px', height: '28px', borderRadius: '50%', border: '2px solid white' }}
+                                                    className={`cursor-pointer hover:scale-110 transition-transform flex items-center justify-center text-white font-bold text-[10px] shadow-lg ${isHighRisk ? 'animate-pulse ring-4 ring-red-500/50' : ''}`}
+                                                    style={{ backgroundColor: isHighRisk ? '#ef4444' : color, width: '28px', height: '28px', borderRadius: '50%', border: '2px solid white' }}
                                                 >
-                                                    {j}
+                                                    {stop.urutan || j}
                                                 </div>
                                             </Marker>
                                         )
                                     })}
-                                </React.Fragment>
+                                </div>
                             )
                         })}
 
@@ -187,31 +235,45 @@ export default function RoutePreviewModal({ previewData, truckColors, onCancel, 
                                     {activePreviewTruck === i && (
                                         <div className="mt-2 pl-7 space-y-1.5 border-l-2 border-slate-100 dark:border-[#333] ml-1.5">
                                             {truk.detail_perjalanan.map((stop: any, j: number) => {
-                                                if (stop.urutan === 0) return null;
+                                                if (stop.urutan === 0 || stop.keterangan === "Start" || stop.keterangan === "Finish" || stop.lokasi === "📍 GUDANG JAPFA") return null;
+
+                                                const warning = trafficWarnings[`${truk.route_id}_${stop.nama_toko}`];
+
                                                 return (
                                                     <div 
                                                         key={j}
                                                         draggable
                                                         onDragStart={() => setDraggedItem({ tIdx: i, sIdx: j })}
                                                         onDragEnd={() => setDraggedItem(null)}
-                                                        className="bg-white dark:bg-[#111] border border-slate-100 dark:border-[#333] px-2 py-1.5 rounded text-xs cursor-grab active:cursor-grabbing hover:border-primary transition-colors flex items-center justify-between"
+                                                        className={`bg-white dark:bg-[#111] border px-2 py-1.5 rounded text-xs cursor-grab active:cursor-grabbing transition-colors flex items-center justify-between
+                                                            ${warning ? (warning.severity === 'HIGH' ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : 'border-amber-400 bg-amber-50 dark:bg-amber-900/20') : 'border-slate-100 dark:border-[#333] hover:border-primary'}
+                                                        `}
                                                     >
-                                                        <div className="flex flex-col truncate w-[60%]">
-                                                            <span className="font-semibold text-slate-700 dark:text-slate-300 truncate" title={stop.nama_toko}>{j}. {stop.nama_toko}</span>
+                                                        <div className="flex flex-col w-[55%]">
+                                                            <span className="font-semibold text-slate-700 dark:text-slate-300 truncate" title={stop.nama_toko}>{stop.urutan || j}. {stop.nama_toko}</span>
                                                             <span className="text-[9px] font-medium text-slate-400 mt-0.5" title="Batas Waktu Pengiriman">Tutup: {stop.timeWindow || stop.jam_maks || '20:00'}</span>
+                                                            
+                                                            {warning && (
+                                                                <span className={`mt-1 text-[9px] font-bold flex items-center gap-1 ${warning.severity === 'HIGH' ? 'text-red-600' : 'text-amber-600'}`}>
+                                                                    <span className="material-symbols-outlined text-[10px]">warning</span>
+                                                                    Telat {warning.delay_minutes}mnt (Macet)
+                                                                </span>
+                                                            )}
                                                         </div>
     
                                                         <div className="flex flex-col items-end shrink-0 gap-1">
                                                             <span className="text-[9px] font-bold text-slate-400 bg-slate-100 dark:bg-[#222] px-1.5 py-0.5 rounded">{stop.turun_barang_kg || stop.berat_kg} KG</span>
         
                                                             <span className={`text-[10px] font-black px-1.5 py-0.5 rounded flex items-center gap-1
-                                                                ${(stop.timeWindow || stop.jam_maks || '20:00') < (stop.jam_tiba || '00:00') 
-                                                                    ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' 
-                                                                    : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' 
+                                                                ${warning 
+                                                                    ? (warning.severity === 'HIGH' ? 'bg-red-600 text-white' : 'bg-amber-500 text-white')
+                                                                    : ((stop.timeWindow || stop.jam_maks || '20:00') < (stop.jam_tiba || '00:00') 
+                                                                        ? 'bg-red-100 text-red-600' 
+                                                                        : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400')
                                                                 }`}
                                                             >
                                                                 <span className="material-symbols-outlined text-[10px]">schedule</span>
-                                                                {stop.jam_tiba || 'Menghitung...'}
+                                                                {warning ? warning.real_eta_traffic : (stop.jam_tiba || '...')}
                                                             </span>
                                                         </div>
                                                     </div>

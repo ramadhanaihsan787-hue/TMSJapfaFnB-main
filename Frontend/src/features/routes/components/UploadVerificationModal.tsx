@@ -253,7 +253,7 @@ export default function UploadVerificationModal({
                 <div className="p-3 sm:p-4 border-t border-slate-200 dark:border-[#333] flex justify-end gap-3 bg-white dark:bg-[#111] shrink-0">
                     <button onClick={onClose} className="px-5 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#222] rounded-lg transition-colors">Batal</button>
                     <button onClick={onOptimize} className="px-6 py-2.5 text-sm font-black text-white bg-gradient-to-r from-primary to-orange-500 hover:brightness-110 rounded-lg flex items-center gap-2 shadow-lg shadow-primary/30 transition-all hover:scale-105 active:scale-95">
-                        <span className="material-symbols-outlined text-[20px]">rocket_launch</span> GAS PREVIEW RUTE AI!
+                        <span className="material-symbols-outlined text-[20px]">rocket_launch</span> GAS ROUTING BANG!
                     </button>
                 </div>
             </div>

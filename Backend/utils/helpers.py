@@ -142,6 +142,7 @@ def minutes_to_time_str(minutes: int) -> str:
     m = int(minutes % 60)
     return f"{h:02d}:{m:02d}"
 
+
 def log_audit_action(db, user_id, action, entity_type, entity_id, old_data=None, new_data=None, ip_address=None):
     """Fungsi helper untuk nyatet jejak digital ke tabel SystemAuditLog"""
     new_log = SystemAuditLog(
@@ -155,3 +156,33 @@ def log_audit_action(db, user_id, action, entity_type, entity_id, old_data=None,
     )
     db.add(new_log)
     db.commit()
+
+
+# ==========================================
+# 🌟 FIX CTO: ORDER CONSOLIDATION (Tumpuk DO se-lokasi)
+# ==========================================
+def consolidate_orders(pending_orders: list) -> dict:
+    """
+    Mengelompokkan DO (Delivery Orders) berdasarkan koordinat GPS yang sama persis.
+    Tujuannya biar AI VRP ngga ngitung jarak ke tempat yang sama berkali-kali.
+    
+    Args:
+        pending_orders: List of DeliveryOrder models
+        
+    Returns:
+        dict: Format { "lat_lon": [order1, order2] }
+    """
+    grouped_orders = {}
+    for order in pending_orders:
+        lat = float(order.latitude)
+        lon = float(order.longitude)
+        
+        # Kelompokin berdasarkan 5 desimal (Akurasi ~1.1 meter)
+        key = f"{lat:.5f}_{lon:.5f}"
+        
+        if key not in grouped_orders:
+            grouped_orders[key] = []
+            
+        grouped_orders[key].append(order)
+        
+    return grouped_orders

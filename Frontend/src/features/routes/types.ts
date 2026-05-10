@@ -1,3 +1,5 @@
+// src/features/routes/types.ts
+
 // ================= CORE DOMAIN =================
 
 export interface RouteProduct {
@@ -54,4 +56,32 @@ export interface DroppedNode {
   reason: string;
   lat?: number;
   lon?: number;
+}
+
+// ================= SPRINT 3 & 4 (TRAFFIC & ZONING) =================
+
+export type ValidationPhase = 'idle' | 'zoning' | 'routing' | 'validating' | 'done';
+
+export interface SpatialZoneStore {
+  nama_toko: string;
+  lat: number;
+  lon: number;
+  berat: number;
+}
+
+export interface SpatialPreview {
+  zone_id: number;
+  stores: SpatialZoneStore[];
+  bounding_polygon: [number, number][];
+}
+
+export interface TrafficWarning {
+  stop_order: number;
+  store_name: string;
+  planned_eta: string;
+  real_eta_traffic: string;
+  delay_minutes: number;
+  severity: 'HIGH' | 'LOW';
+  truck_id: string;
+  armada: string;
 }
