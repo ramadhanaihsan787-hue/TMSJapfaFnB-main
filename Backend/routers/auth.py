@@ -43,7 +43,7 @@ def register_user(
     data: schemas.RegisterRequest,
     db: Session = Depends(get_db),
     # 🔥 INI GEMBOKNYA! CUMA ADMIN & MANAGER YANG BOLEH BIKIN AKUN!
-    current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))
+    #current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))
 ):
     VALID_ROLES = ["manager_logistik", "admin_distribusi", "admin_pod", "driver", "kasir"]
     

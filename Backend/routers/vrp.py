@@ -26,7 +26,7 @@ VRP_JOBS = {}
 # 1. BARISTA NYEDUH KOPI (FUNGSI BACKGROUND VRP UTAMA)
 # ==========================================
 def run_vrp_optimization_task(job_id: str, preview: bool):
-    """Heavy lifting jalan di Pipeline baru!"""
+    """Heavy lifting jalan di Pipeline VRP GLOBAL murni!"""
     db = SessionLocal() 
     try:
         VRP_JOBS[job_id]["phase"] = "zoning"
@@ -39,10 +39,103 @@ def run_vrp_optimization_task(job_id: str, preview: bool):
         vehicles = db.query(models.FleetVehicle).filter(models.FleetVehicle.status == "Available").all()
         if not vehicles: raise Exception("Armada tidak tersedia!")
 
-        # PANGGIL OTAK BESAR KITA DI SINI
-        formatted_routes, spillover = vrp_service.VRPService.cluster_first_pipeline(
-            pending_orders, vehicles, settings
-        )
+        # 🌟 KABEL BARU 1: Siapin bahan baku buat VRP Global
+        vrp_input = vrp_service.VRPService.prepare_vrp_data(pending_orders, vehicles, settings)
+        
+        # OSRM butuh list of dict, jadi kita konversi format koordinatnya
+        locs = [{"lat": lat, "lon": lon} for lat, lon in vrp_input["coordinates"]]
+        dist_mat, time_mat = map_service.build_osrm_matrix(locs)
+        if not dist_mat:
+            dist_mat, time_mat = map_service.build_haversine_matrix(locs)
+
+        # 🌟 KABEL BARU 2: Panggil Otak AI VRP Global
+        hasil = vrp_service.VRPService.solve_and_format(vrp_input, dist_mat, time_mat, settings)
+
+        formatted_routes = []
+        spillover = []
+
+        if hasil:
+            from utils.helpers import menit_ke_jam
+            
+            # Jahit hasil rute mentah AI jadi format cakep buat Frontend & DB
+            for route in hasil["routes"]:
+                truck_idx = route["truck_index"]
+                assigned_vehicle = vehicles[truck_idx]
+                node_seq = route["node_sequence"]
+
+                manifest = []
+                current_time = 420 # 07:00 Pagi keberangkatan dari depo
+                prev_node = 0
+                total_jarak_m = 0
+                total_berat = 0
+
+                for step, node_idx in enumerate(node_seq):
+                    seg_m = dist_mat[prev_node][node_idx] if step != 0 else 0
+                    seg_km = round(seg_m / 1000.0, 1)
+
+                    if node_idx == 0:
+                        if step != 0: current_time += time_mat[prev_node][node_idx]
+                        manifest.append({
+                            "urutan": step, "lokasi": "📍 GUDANG JAPFA",
+                            "jam": str(menit_ke_jam(current_time)),
+                            "keterangan": "Start" if step == 0 else "Finish",
+                            "lat": settings.depo_lat, "lon": settings.depo_lon,
+                            "distance_from_prev_km": seg_km
+                        })
+                    else:
+                        order_id = vrp_input["order_mapping"][node_idx]
+                        order = next(o for o in pending_orders if o.order_id == order_id)
+
+                        is_mall = vrp_input["is_mall_list"][node_idx]
+                        base_time = 60 if is_mall else 15
+                        var_time = (float(order.weight_total) / 10.0) * 1.0
+                        service_time = base_time + var_time
+
+                        current_time += time_mat[prev_node][node_idx]
+
+                        store_name = order.customer.store_name if hasattr(order, 'customer') and order.customer else (order.customer_name if hasattr(order, 'customer_name') else "Toko")
+
+                        manifest.append({
+                            "urutan": step,
+                            "nomor_do": order.order_id,
+                            "nama_toko": store_name,
+                            "turun_barang_kg": round(float(order.weight_total), 2),
+                            "jam_tiba": str(menit_ke_jam(current_time)),
+                            "lat": float(order.latitude), "lon": float(order.longitude),
+                            "distance_from_prev_km": seg_km
+                        })
+
+                        current_time += service_time
+                        total_berat += float(order.weight_total)
+
+                    total_jarak_m += seg_m
+                    prev_node = node_idx
+
+                route_geometry = map_service.get_road_geometry(node_seq, locs)
+
+                formatted_routes.append({
+                    "route_id": f"RP-{datetime.datetime.now().strftime('%Y%m%d')}-T{truck_idx+1}",
+                    "color_index": truck_idx,
+                    "armada": assigned_vehicle.license_plate,
+                    "driver_id": assigned_vehicle.default_driver_id,
+                    "helper_id": assigned_vehicle.co_driver_id,
+                    "total_muatan_kg": total_berat,
+                    "total_jarak_km": round(total_jarak_m / 1000.0, 1),
+                    "detail_perjalanan": manifest,
+                    "garis_aspal": route_geometry
+                })
+
+            # Format dropped nodes buat masuk ke Keranjang Merah
+            for dropped_id in hasil["dropped_node_ids"]:
+                order = next(o for o in pending_orders if o.order_id == dropped_id)
+                store_name = order.customer.store_name if hasattr(order, 'customer') and order.customer else (order.customer_name if hasattr(order, 'customer_name') else "Toko")
+                spillover.append({
+                    "nama_toko": store_name,
+                    "berat_kg": float(order.weight_total),
+                    "alasan": "Drop VRP Global (Kapasitas Maksimal / Waktu Lembur Habis)",
+                    "lat": float(order.latitude),
+                    "lon": float(order.longitude)
+                })
 
         VRP_JOBS[job_id]["phase"] = "done"
         VRP_JOBS[job_id]["progress"] = 100
@@ -68,7 +161,7 @@ def run_vrp_optimization_task(job_id: str, preview: bool):
                 "total_orders": len(pending_orders), 
                 "dropped_count": len(spillover),
                 "jadwal_truk_internal": formatted_routes, 
-                "dropped_nodes_peta": spillover # Ini bakal ditangkep "Keranjang Merah" di frontend
+                "dropped_nodes_peta": spillover
             }
         }
 
@@ -239,7 +332,6 @@ def get_routes(
             order = db.query(models.DeliveryOrder).filter(models.DeliveryOrder.order_id == line.order_id).first()
             if order:
                 items = json.loads(order.service_type) if order.service_type and order.service_type.startswith('[') else []
-                # 🌟 FIX NAMA TOKO HILANG: Ambil dari relasi customer kalau ada, kalau ngga pakai customer_name (fallback)
                 nama_toko_asli = order.customer.store_name if hasattr(order, 'customer') and order.customer else (order.customer_name if hasattr(order, 'customer_name') else "Toko")
                 
                 detail_rute.append({
@@ -284,7 +376,6 @@ def get_routes(
         "routes": hasil, 
         "dropped_nodes": dropped_nodes_response
     }
-
 
 @router.post("/routes/confirm", response_model=schemas.ConfirmRouteResponse)
 def confirm_routes(payload: dict, db: Session = Depends(get_db), current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))):
@@ -371,7 +462,6 @@ def start_traffic_validation(
     job_id: str, background_tasks: BackgroundTasks,
     current_user: models.User = Depends(require_role("admin_distribusi", "manager_logistik"))
 ):
-    """Trigger Phase 4: Validasi rute dengan TomTom traffic API."""
     vrp_result = VRP_JOBS.get(job_id)
     if not vrp_result or vrp_result["status"] != "completed":
         raise HTTPException(400, "VRP belum selesai atau job tidak ditemukan")

@@ -1,7 +1,7 @@
+// driverappdashboardpage.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../../../shared/components/Header';
-// 🌟 FIX CTO: Balikin Nyawa API-nya!
 import { useDriverappFlow } from '../hooks/useDriverappFlow';
 
 const DriverDashboard: React.FC = () => {
@@ -15,6 +15,18 @@ const DriverDashboard: React.FC = () => {
     const totalStops = tripData?.total_stops || 0;
     const completedCount = tripData?.completed_stops || 0;
     const progressPercent = totalStops > 0 ? Math.round((completedCount / totalStops) * 100) : 0;
+
+    // ==========================================
+    // 🌟 FIX CTO: AMBIL REAL TIME DARI BACKEND
+    // ==========================================
+    const stopsArray = tripData?.stops || [];
+    let estFinishTime = '--';
+
+    if (stopsArray.length > 0) {
+        // Ambil elemen paling terakhir dari array rute (Jam pulang depo / Toko terakhir)
+        const lastStop = stopsArray[stopsArray.length - 1];
+        estFinishTime = lastStop.timeWindow || '--';
+    }
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-[#1a1c1e] font-sans transition-colors duration-300">
@@ -32,7 +44,6 @@ const DriverDashboard: React.FC = () => {
                         </div>
                     </div>
                     
-                    {/* 🌟 FIX CTO: Truck ID Dinamis dari DB */}
                     <h3 className="text-2xl font-bold dark:text-white mb-2">Truck ID: <span className="text-primary">{tripData?.truck_id || 'Memuat...'}</span></h3>
                     <div className="inline-flex items-center px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-bold tracking-wide">
                         {isLoading ? 'MEMUAT DATA...' : 'READY FOR DEPARTURE'}
@@ -55,7 +66,6 @@ const DriverDashboard: React.FC = () => {
                     </div>
                     
                     <div className="flex justify-between items-end mb-2">
-                        {/* 🌟 FIX CTO: Progress Dinamis */}
                         <p className="text-2xl font-bold dark:text-white">{completedCount} <span className="text-slate-400 text-base font-normal">of {totalStops} visits completed</span></p>
                         <p className="text-xl font-bold text-primary">{progressPercent}%</p>
                     </div>
@@ -70,8 +80,9 @@ const DriverDashboard: React.FC = () => {
                             <span className="text-lg font-bold dark:text-white">{tripData?.total_distance || 0} km</span>
                         </div>
                         <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
-                            <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest block mb-1">Est. Time</span>
-                            <span className="text-lg font-bold dark:text-white">--</span>
+                            {/* 🌟 FIX CTO: Label diganti jadi Est. Kepulangan biar supir tau itu jam kelar */}
+                            <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest block mb-1">Est. Kepulangan</span>
+                            <span className="text-lg font-bold dark:text-white">{estFinishTime}</span>
                         </div>
                     </div>
                 </div>
@@ -97,8 +108,8 @@ const DriverDashboard: React.FC = () => {
 
                     <button 
                         onClick={() => {
-                            localStorage.setItem('driver_start_km', startKm); // Simpan KM awal ke memori HP
-                            startRoute(); // Panggil fungsi API start route!
+                            localStorage.setItem('driver_start_km', startKm); 
+                            startRoute(); 
                             navigate('/driver/routes');
                         }}
                         disabled={!startKm}

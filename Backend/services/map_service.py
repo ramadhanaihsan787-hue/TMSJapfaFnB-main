@@ -10,16 +10,16 @@ logger = logging.getLogger(__name__)
 
 OSRM_BASE_URL = "http://210.79.191.145:5000"
 
-# 🌟 KAMUS KEMACETAN JABODETABEK (SPRINT 1)
+# 🌟 KAMUS KEMACETAN JABODETABEK
 TRAFFIC_MULTIPLIERS = {    
-    (0, 5):   1.0,   # Tengah malam - pagi buta: clear    
-    (5, 7):   1.15,  # Subuh - sebelum rush: sedikit padat    
-    (7, 9):   1.55,  # Morning rush Jakarta: berat    
-    (9, 11):  1.25,  # Post-rush masih medium    
-    (11, 14): 1.15,  # Siang: relatif lancar    
-    (14, 16): 1.25,  # Sore mulai padat    
-    (16, 19): 1.60,  # Evening rush: berat banget    
-    (19, 24): 1.10,  # Malam: mulai sepi
+    (0, 5):   1.0,   
+    (5, 7):   1.15,  
+    (7, 9):   1.55,  # Morning rush: Macet berat!
+    (9, 11):  1.25,  
+    (11, 14): 1.15,  
+    (14, 16): 1.25,  
+    (16, 19): 1.60,  
+    (19, 24): 1.10,  
 }
 
 def get_traffic_multiplier(departure_hour: int) -> float:
@@ -28,15 +28,6 @@ def get_traffic_multiplier(departure_hour: int) -> float:
         if start <= departure_hour < end:
             return mult
     return 1.2  
-
-def apply_traffic_to_time_matrix(time_matrix: list[list[int]], departure_hour: int) -> list[list[int]]:
-    """Kalikan seluruh time matrix dengan traffic multiplier"""
-    mult = get_traffic_multiplier(departure_hour)
-    logger.info(f"🚦 Jam {departure_hour}:00 -> Traffic Multiplier {mult}x diterapkan!")
-    return [
-        [int(cell * mult) for cell in row]
-        for row in time_matrix
-    ]
 
 def calculate_haversine(lat1, lon1, lat2, lon2) -> int:
     R = 6371.0 
@@ -66,28 +57,40 @@ def build_osrm_matrix(locations: list):
         distance_matrix = [[0] * n for _ in range(n)]
         time_matrix = [[0] * n for _ in range(n)]
         
+        # 🌟 OSRM + TRAFFIC MULTIPLIER: Asumsi mulai jam 07:00 (Faktor macet 1.55x)
+        traffic_factor = get_traffic_multiplier(7)
+        
         for i in range(n):
             for j in range(n):
+                # Jarak biarin asli aspal
                 distance_matrix[i][j] = int(data["distances"][i][j])
-                time_matrix[i][j] = int(data["durations"][i][j] / 60)
+                # Waktu aspal kosong dikalikan sama kemacetan Jakarta!
+                time_matrix[i][j] = int((data["durations"][i][j] / 60) * traffic_factor)
                 
-        logger.info("✅ OSRM Matrix berhasil didapatkan!")
+        logger.info(f"✅ OSRM Matrix berhasil (Dikalikan faktor macet {traffic_factor}x)!")
         return distance_matrix, time_matrix
 
     except Exception as e:
         logger.warning(f"⚠️ OSRM gagal: {e} → Switch ke Haversine fallback")
-        return None, None
+        return build_haversine_matrix(locations)
 
 def build_haversine_matrix(locations: list):
-    logger.info("🔄 Pakai Haversine fallback...")
+    logger.info("🔄 Pakai Haversine Fallback (Dengan Detour & Traffic Simulation)...")
     n = len(locations)
     distance_matrix, time_matrix = [[0] * n for _ in range(n)], [[0] * n for _ in range(n)]
+    
+    traffic_factor = get_traffic_multiplier(7)
+    
     for i in range(n):
         for j in range(n):
             if i != j:
-                dist = calculate_haversine(locations[i]["lat"], locations[i]["lon"], locations[j]["lat"], locations[j]["lon"])
-                distance_matrix[i][j] = dist
-                time_matrix[i][j] = int(dist / 400) 
+                dist_lurus = calculate_haversine(locations[i]["lat"], locations[i]["lon"], locations[j]["lat"], locations[j]["lon"])
+                real_dist = dist_lurus * 1.5 # Detour
+                distance_matrix[i][j] = int(real_dist)
+                
+                time_menit = (real_dist / 300.0) * traffic_factor # 18km/h speed
+                time_matrix[i][j] = int(time_menit)
+                
     return distance_matrix, time_matrix
 
 def get_road_geometry(route_indices: list, locations: list) -> list:

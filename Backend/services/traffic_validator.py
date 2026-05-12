@@ -25,7 +25,7 @@ def validate_route_traffic(route: dict, date_str: str) -> dict:
              and s.get("lat")]
              
     # Pengecekan API KEY
-    tomtom_key = getattr(settings, 'TOMTOM_API_KEY', None)
+    tomtom_key = None
     if not tomtom_key:
         logger.warning("⚠️ TOMTOM_API_KEY tidak ditemukan di setting, skip traffic validation.")
         return {"warnings": [], "skipped": True}

@@ -18,8 +18,8 @@ def _get_centroid(cluster: list) -> dict:
 
 def _find_best_alternative_cluster(store: dict, centroids: list, weights: list, max_cap: float, current_idx: int) -> int:
     """
-    Mencari zona tetangga yang paling dekat dengan toko ini, 
-    TAPI syaratnya zona tetangga itu kapasitasnya masih muat.
+    Mencari zona tetangga yang paling dekat dengan toko ini.
+    🌟 FIX: MURNI HANYA MENGECEK BERAT (KG), TANPA MEMAKSA RATA JUMLAH TOKO!
     """
     store_lat = float(store['lat'] if 'lat' in store else store.latitude)
     store_lon = float(store['lon'] if 'lon' in store else store.longitude)
@@ -31,7 +31,7 @@ def _find_best_alternative_cluster(store: dict, centroids: list, weights: list, 
     for i, centroid in enumerate(centroids):
         if i == current_idx: continue
         
-        # Cek apakah zona tetangga masih muat kalau ditambahin toko ini
+        # Cek apakah zona tetangga muat tonasenya (KG)
         if weights[i] + store_weight <= max_cap:
             dist = calculate_haversine(store_lat, store_lon, centroid['lat'], centroid['lon'])
             if dist < min_dist:
@@ -42,19 +42,18 @@ def _find_best_alternative_cluster(store: dict, centroids: list, weights: list, 
 
 def balance_zones(clusters: list, max_capacity_per_truck: float, max_swap_iters: int = 50):
     """
-    🌟 FASE 2: BORDER SWAPPING & SPILLOVER (Mitigasi R1)
-    Menyeimbangkan beban antar zona agar tidak melebihi kapasitas maksimum truk.
+    🌟 FASE 2: BORDER SWAPPING & SPILLOVER
+    Menyeimbangkan beban antar zona agar tidak melebihi kapasitas maksimum truk (KG).
     """
-    logger.info("⚖️ Memulai Border Swapping (Tukar Guling) antar zona...")
+    logger.info("⚖️ Memulai Border Swapping (Tukar Guling) murni berdasarkan Berat (KG)...")
     spillover_basket = []
     
-    # Hitung centroid awal masing-masing zona
     centroids = [_get_centroid(c) for c in clusters]
 
     for iteration in range(max_swap_iters):
         weights = [_get_cluster_weight(c) for c in clusters]
         
-        # Cari zona mana aja yang obesitas (melebihi kapasitas truk terbesar kita)
+        # Cari zona mana aja yang obesitas secara tonase
         overweight_indices = [i for i, w in enumerate(weights) if w > max_capacity_per_truck]
 
         if not overweight_indices:
@@ -67,8 +66,7 @@ def balance_zones(clusters: list, max_capacity_per_truck: float, max_swap_iters:
             cluster = clusters[ov_idx]
             centroid = centroids[ov_idx]
             
-            # Urutkan toko di zona obesitas berdasarkan yang PALING JAUH dari pusat zonanya sendiri (Toko Perbatasan)
-            # Biar yang digeser ke tetangga itu toko yang di pinggiran, bukan yang di tengah kota
+            # Urutkan dari yang paling jauh dari pusat zona
             sorted_stores = sorted(
                 cluster, 
                 key=lambda s: calculate_haversine(
@@ -95,20 +93,17 @@ def balance_zones(clusters: list, max_capacity_per_truck: float, max_swap_iters:
                     centroids[best_alt_idx] = _get_centroid(clusters[best_alt_idx])
                     
                     moved_anything = True
-                    # Cukup pindah 1 toko per zona per iterasi biar stabil ngeceknya
                     break 
 
         if not moved_anything:
-            logger.warning(f"⚠️ Swap stuck di iterasi {iteration}. Tidak ada zona tetangga yang muat lagi.")
+            logger.warning(f"⚠️ Swap stuck di iterasi {iteration}. Tidak ada zona tetangga yang muat KG-nya lagi.")
             break
 
-    # 🌟 PENYAPUAN TERAKHIR (KERANJANG MERAH / SPILLOVER)
-    # Kalau setelah di-swap ke tetangga ternyata MASIH ada zona yang kepenuhan 
-    # (berarti emang pesanan hari itu lagi membludak), sisa toko kita potong paksa.
+    # 🌟 PENYAPUAN TERAKHIR (KERANJANG MERAH)
+    # Potong paksa HANYA jika berat melebihi max_capacity truk
     for i, cluster in enumerate(clusters):
         while _get_cluster_weight(cluster) > max_capacity_per_truck and len(cluster) > 0:
             centroid = _get_centroid(cluster)
-            # Potong toko yang paling jauh dari pusat
             furthest_store = max(
                 cluster, 
                 key=lambda s: calculate_haversine(
@@ -120,15 +115,14 @@ def balance_zones(clusters: list, max_capacity_per_truck: float, max_swap_iters:
             )
             cluster.remove(furthest_store)
             
-            # Catat alasan ngga masuk rute
             if type(furthest_store) == dict:
-                furthest_store['alasan'] = "Overcapacity (Spillover Zona)"
+                furthest_store['alasan'] = "Overcapacity KG (Spillover Zona)"
             else:
-                furthest_store.alasan = "Overcapacity (Spillover Zona)"
+                furthest_store.alasan = "Overcapacity KG (Spillover Zona)"
                 
             spillover_basket.append(furthest_store)
 
     if spillover_basket:
-        logger.error(f"🚨 Terdapat {len(spillover_basket)} toko yang masuk Keranjang Spillover (On-Call)!")
+        logger.error(f"🚨 Terdapat {len(spillover_basket)} toko yang masuk Keranjang Spillover (Kelebihan Tonase)!")
 
     return clusters, spillover_basket

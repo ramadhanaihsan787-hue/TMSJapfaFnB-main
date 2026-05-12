@@ -1,6 +1,7 @@
 # routers/driver.py
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
+from sqlalchemy import or_ # 🌟 SUNTIKAN BARU: Buat pencarian multi-kondisi
 from datetime import date, datetime
 import os
 import shutil
@@ -84,9 +85,21 @@ def get_my_route(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    driver = db.query(models.HRDriver).filter(models.HRDriver.user_id == current_user.id).first()
+    # 🌟 FIX: AUTO-LINKING BY NAME ATAU USER_ID
+    driver = db.query(models.HRDriver).filter(
+        or_(
+            models.HRDriver.user_id == current_user.id,
+            models.HRDriver.name == current_user.full_name # Cocokin berdasarkan nama lengkap!
+        )
+    ).first()
+
     if not driver:
         raise HTTPException(status_code=404, detail="Profil supir tidak ditemukan di database HR!")
+        
+    # 🌟 AUTO-HEALING: Kalau kemaren profil HRDriver belum ada user_id nya, kita isi otomatis sekarang
+    if not driver.user_id:
+        driver.user_id = current_user.id
+        db.commit()
 
     today = date.today()
     plan = db.query(models.TMSRoutePlan).filter(
@@ -120,11 +133,22 @@ def get_my_route(
         elif order.status == models.DOStatus.do_assigned_to_route:
             status_fe = "active" if line.sequence == 1 else "pending"
 
+        # 🌟 FIX: SARINGAN ANTI-NONE (Biar Pydantic FastAPI ga ngambek!)
+        nama_toko = "Tanpa Nama"
+        alamat_toko = "Alamat tidak tersedia"
+        
+        if hasattr(order, 'customer') and order.customer:
+            # Pake "or" biar kalo datanya None, dia milih string default
+            nama_toko = order.customer.store_name or nama_toko
+            alamat_toko = order.customer.address or alamat_toko
+        elif hasattr(order, 'customer_name') and order.customer_name:
+            nama_toko = order.customer_name
+
         stops_data.append({
             "id": line.line_id,
             "sequence": line.sequence,
-            "customerName": order.customer.store_name if order.customer else "Tanpa Nama",
-            "address": order.customer.address if order.customer else "Alamat tidak tersedia",
+            "customerName": str(nama_toko), # Paksa jadi string!
+            "address": str(alamat_toko),    # Paksa jadi string!
             "timeWindow": f"{line.est_arrival.strftime('%H:%M')} WIB" if line.est_arrival else "-",
             "weight": f"{order.weight_total} KG",
             "status": status_fe,
@@ -133,7 +157,7 @@ def get_my_route(
         })
 
     return {
-        "truck_id": plan.vehicle.license_plate if plan.vehicle else "B ???? JAPFA",
+        "truck_id": plan.vehicle.license_plate if hasattr(plan, 'vehicle') and plan.vehicle else "B ???? JAPFA",
         "driver_name": driver.name,
         "total_stops": len(stops_data),
         "completed_stops": completed_count,
@@ -173,7 +197,7 @@ async def submit_epod(
     return_qty: float = Form(0.0),
     return_reason: str = Form(""),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user) # 🌟 Tambahin ini biar tau ID supir
+    current_user: models.User = Depends(get_current_user)
 ):
     if file.content_type not in ALLOWED_MIME_TYPES:
         raise HTTPException(status_code=400, detail="Format file ditolak! Hanya boleh upload gambar (JPG, PNG, WEBP).")
@@ -193,7 +217,6 @@ async def submit_epod(
         qty_delivered = total_order_kg
         qty_returned = 0.0
         qty_damaged = 0.0
-        # 🌟 FIX: Jangan langsung delivered_success, set ke uploaded biar masuk antrean admin
         final_status = models.DOStatus.delivered_pod_uploaded 
         driver_note = ""
 
@@ -211,7 +234,6 @@ async def submit_epod(
         if file_ext not in ["jpg", "jpeg", "png", "webp"]:
              raise HTTPException(status_code=400, detail="Ekstensi file mencurigakan!")
 
-        # 🌟 EKSEKUSI WATERMARK SEBELUM DI-SAVE
         timestamp_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         watermark_text = [
             f"Waktu: {timestamp_now} WIB",
@@ -220,17 +242,14 @@ async def submit_epod(
             "JAPFA F&B E-POD SYSTEM - ANTI FRAUD"
         ]
         
-        # Timpa file_content lama dengan yang udah di-watermark
         file_content = add_watermark(file_content, watermark_text)
         
-        # Selalu simpen jadi JPG karena output dari fungsi helper kita itu JPEG
         filename = f"POD_{line.order_id}_{uuid.uuid4().hex}.jpg"
         file_path = os.path.join(UPLOAD_DIR, filename)
 
         with open(file_path, "wb") as buffer:
             buffer.write(file_content)
 
-        # 🌟 Pastiin field DB-nya sama kayak skema Models lu ya!
         new_pod = models.TMSEpodHistory(
             line_id=line_id,
             status=final_status,
