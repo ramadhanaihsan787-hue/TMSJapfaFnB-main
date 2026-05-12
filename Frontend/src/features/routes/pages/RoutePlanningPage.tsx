@@ -1,7 +1,7 @@
 // src/features/routes/pages/RoutePlanningPage.tsx
 import React, { useState, useEffect, useMemo } from "react";
 import { toast } from 'sonner'; 
-import Map, { Source, Layer, Marker } from 'react-map-gl/mapbox'; // Import mapbox buat preview zona
+import Map, { Source, Layer, Marker } from 'react-map-gl/mapbox'; 
 
 import { useRoutes } from "../hooks/useRoutes";
 import { useUpload } from "../hooks/useUpload";
@@ -27,14 +27,27 @@ export default function RoutePlanningPage() {
         setTitle("Route Planning Dashboard");
     }, [setTitle]);
 
-    const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const getLocalToday = () => {
+        const d = new Date();
+        return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+    };
+
+    const [selectedDate, setSelectedDate] = useState(() => getLocalToday());
     const [isFocusMode, setIsFocusMode] = useState(false);
     const [showMapView, setShowMapView] = useState(false);
     const [activeModal, setActiveModal] = useState<'cost' | 'distance' | 'fleet' | 'stops' | null>(null);
     const [showVerificationModal, setShowVerificationModal] = useState(false);
     const [isGeneratingOnCall, setIsGeneratingOnCall] = useState(false); 
 
-    const truckColors = ['#e11d48', '#0284c7', '#16a34a', '#d97706', '#9333ea', '#0d9488', '#0891b2'];
+    const truckColors = [
+        '#7f1d1d', // muted red
+        '#1e3a5f', // muted blue
+        '#14532d', // muted green
+        '#78350f', // muted amber
+        '#4c1d95', // muted purple
+        '#134e4a', // muted teal
+        '#7c2d12'  // muted orange
+    ];
 
     const { routesData, droppedNodes, selectedRouteId, setSelectedRouteId, fetchRoutes } = useRoutes();
     
@@ -46,7 +59,7 @@ export default function RoutePlanningPage() {
     const { 
         isOptimizing, previewData, setPreviewData, loadingProgress, 
         optimizationPhase, zoningData, 
-        generateSpatialZones, runAIOptimization, // 🌟 Panggil 2 fungsi baru
+        generateSpatialZones, runAIOptimization, 
         confirm, resequenceRoute, setOptimizationPhase
     } = useRouteOptimization();
 
@@ -57,21 +70,15 @@ export default function RoutePlanningPage() {
     const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
-        
         const success = await uploadFile(file);
         if (success) setShowVerificationModal(true);
-        
         event.target.value = ''; 
     };
 
-    // 🌟 TOMBOL OPTIMIZE SEKARANG CUMA MANGGIL ZONING (FASE 1)
     const handleStartOptimization = async () => {
         setShowVerificationModal(false);
-        try {
-            await generateSpatialZones();
-        } catch (error) {
-            toast.error('Gagal memetakan zona rute!');
-        }
+        try { await generateSpatialZones(); } 
+        catch (error) { toast.error('Gagal memetakan zona rute!'); }
     };
 
     const handleGenerateOnCall = async () => {
@@ -89,30 +96,10 @@ export default function RoutePlanningPage() {
     const totalCostRaw = safeRoutesData.reduce((sum, route: any) => sum + (route.transportCost || route.transport_cost || 0), 0);
     const totalCost = totalCostRaw.toLocaleString('id-ID');
     const totalRealDistance = safeRoutesData.reduce((sum, route: any) => sum + (route.totalDistanceKm || route.total_distance_km || 0), 0).toFixed(1);
-    
     const selectedRouteData = safeRoutesData.find((r: any) => (r.routeId || r.route_id) === selectedRouteId);
 
     const [dispatchData, setDispatchData] = useState<any>(null);
     const [isSavingRoute, setIsSavingRoute] = useState(false);
-    
-    // 🌟 BIKIN GEOJSON KHUSUS BUAT PREVIEW MODAL ZONING SEBELUM AI JALAN
-    const zoningPreviewGeoJSON = useMemo(() => {
-        if (optimizationPhase !== 'preview_zone' || !zoningData) return null;
-
-        const features: any[] = [];
-        zoningData.forEach((zone: any, i: number) => {
-            const color = truckColors[i % truckColors.length] || '#3b82f6';
-            if (zone.bounding_polygon && zone.bounding_polygon.length >= 3) {
-                const polyCoords = [...zone.bounding_polygon, zone.bounding_polygon[0]];
-                features.push({
-                    type: 'Feature',
-                    properties: { color, type: 'polygon', zoneId: zone.zone_id, totalStores: zone.stores.length },
-                    geometry: { type: 'Polygon', coordinates: [polyCoords] }
-                });
-            }
-        });
-        return { type: 'FeatureCollection', features };
-    }, [optimizationPhase, zoningData, truckColors]);
 
     return (
         <div className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 dark:bg-[#0A0A0A]">
@@ -137,20 +124,20 @@ export default function RoutePlanningPage() {
                     onUpdateTime={updateTime}
                     onUpdateWeight={updateWeight}
                     onUpdateSuccessCoord={updateSuccessCoord}
-                    onOptimize={handleStartOptimization} // 🌟 Diganti panggil fungsi zoning
+                    onOptimize={handleStartOptimization} 
                 />
             )}
 
-            {/* 🌟 MODAL PREVIEW ZONA BARU SEBELUM AI JALAN */}
-            {optimizationPhase === 'preview_zone' && zoningData && (
+            {/* 🌟 PREVIEW ZONA MODAL: Menampilkan Polygon Permanen */}
+            {optimizationPhase === 'preview_zone' && (
                 <div className="fixed inset-0 z-[999999] bg-slate-900/90 backdrop-blur-sm flex flex-col p-4 md:p-8">
                     <div className="bg-white dark:bg-[#111] flex-1 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95">
                         <div className="p-4 md:p-6 border-b border-slate-200 dark:border-[#333] flex justify-between items-center bg-slate-50 dark:bg-[#1A1A1A]">
                             <div>
                                 <h2 className="text-xl md:text-2xl font-black uppercase text-slate-800 dark:text-white flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-primary">map</span> PREVIEW ZONA TERITORI (K-MEANS)
+                                    <span className="material-symbols-outlined text-primary">map</span> PREVIEW ZONA TERITORI JAPFA
                                 </h2>
-                                <p className="text-xs font-bold text-slate-500 mt-1">Sistem membagi Jabodetabek menjadi {zoningData.length} zona. Pastikan sebaran wilayah terlihat masuk akal.</p>
+                                <p className="text-xs font-bold text-slate-500 mt-1">Peta Dasar Operasional JAPFA. Pin toko akan menyesuaikan rute di dalam batas zona ini.</p>
                             </div>
                             <div className="flex gap-3">
                                 <button onClick={() => setOptimizationPhase('idle')} className="px-4 py-2 border-2 border-slate-200 dark:border-[#444] text-slate-600 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-100 dark:hover:bg-[#333] transition-colors">Batal</button>
@@ -162,24 +149,53 @@ export default function RoutePlanningPage() {
 
                         <div className="flex-1 relative bg-slate-100 dark:bg-[#0a0a0a]">
                             <Map 
-                                initialViewState={{ longitude: 106.82, latitude: -6.20, zoom: 10 }} 
+                                initialViewState={{
+                                    longitude: 106.86,
+                                    latitude: -6.33,
+                                    zoom: 8.9,
+                                    pitch: 0,
+                                    bearing: 0
+                                }} 
                                 style={{ width: '100%', height: '100%' }} 
-                                mapStyle="mapbox://styles/mapbox/dark-v11" 
+                                mapStyle="mapbox://styles/mapbox/dark-v11"
                                 mapboxAccessToken={import.meta.env.VITE_MAPBOX_TOKEN}
                             >
-                                {zoningPreviewGeoJSON && (
-                                    <Source id="zoning-preview-phase" type="geojson" data={zoningPreviewGeoJSON as any}>
-                                        <Layer id="z-fill" type="fill" paint={{ 'fill-color': ['get', 'color'], 'fill-opacity': 0.15 }} />
-                                        <Layer id="z-line" type="line" paint={{ 'line-color': ['get', 'color'], 'line-width': 3, 'line-dasharray': [2, 2] }} />
-                                    </Source>
-                                )}
+                                {/* 🌟 INI DIA POLYGON NYAMBUNGNYA! */}
+                                <Source id="static-zones" type="geojson" data={{
+                                    type: 'FeatureCollection',
+                                    features: zoningData?.map((zone: any, i: number) => ({
+                                        type: 'Feature',
+                                        properties: { zone_id: zone.zone_id, color: truckColors[i % truckColors.length] },
+                                        geometry: { type: 'Polygon', coordinates: zone.bounding_polygon } // FIX ARRAY 4D
+                                    }))
+                                } as any}>
+                                    <Layer
+                                        id="static-zones-fill"
+                                        type="fill"
+                                        paint={{
+                                            'fill-color': ['get', 'color'],
+                                            'fill-opacity': 0.13
+                                        }}
+                                    />
 
-                                {/* Looping pin toko di dalam zona */}
-                                {zoningData.map((zone: any, i: number) => {
+                                    <Layer
+                                        id="static-zones-line"
+                                        type="line"
+                                        paint={{
+                                            'line-color': ['get', 'color'],
+                                            'line-width': 1.8,
+                                            'line-opacity': 0.45,
+                                            'line-dasharray': [2, 3]
+                                        }}
+                                    />
+                                </Source>
+
+                                {/* Looping pin toko dari AI */}
+                                {zoningData?.map((zone: any, i: number) => {
                                     const color = truckColors[i % truckColors.length];
                                     return zone.stores.map((store: any, j: number) => (
                                         <Marker key={`z${i}-s${j}`} longitude={store.lon} latitude={store.lat} anchor="center">
-                                            <div className="w-3 h-3 rounded-full border border-white shadow-sm" style={{ backgroundColor: color }}></div>
+                                            <div className="w-3.5 h-3.5 rounded-full border-2 border-white shadow-[0_0_8px_rgba(255,255,255,0.8)]" style={{ backgroundColor: color }}></div>
                                         </Marker>
                                     ));
                                 })}
@@ -189,14 +205,14 @@ export default function RoutePlanningPage() {
                 </div>
             )}
 
-            {/* PREVIEW RUTE MODAL (TETAP SAMA SEPERTI SEBELUMNYA) */}
+            {/* PREVIEW RUTE MODAL */}
             {previewData && !dispatchData && optimizationPhase === 'done' && (
                 <RoutePreviewModal 
                     previewData={previewData}
                     truckColors={truckColors}
                     onCancel={() => {
                         setPreviewData(null);
-                        setShowVerificationModal(true); // Balikin ke upload modal kalau dibatalin
+                        setShowVerificationModal(true); 
                     }}
                     onProceedDispatch={(draft) => {
                         setDispatchData(draft);
@@ -217,7 +233,7 @@ export default function RoutePlanningPage() {
                         try {
                             await confirm(finalDataWithKru);
                             toast.success('Rute berhasil dikunci & Armada diberangkatkan! 🚀');
-                            const todayStr = new Date().toISOString().split('T')[0];
+                            const todayStr = getLocalToday(); 
                             setSelectedDate(todayStr);
                             await fetchRoutes(todayStr);
                             setDispatchData(null);

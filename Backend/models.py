@@ -18,6 +18,7 @@ class DOStatus(enum.Enum):
     so_waiting_verification = "SO_WAITING_VERIFICATION"
     do_verified = "DO_VERIFIED"
     do_assigned_to_route = "DO_ASSIGNED_TO_ROUTE"
+    delivered_pod_uploaded = "DELIVERED_POD_UPLOADED"
     delivered_success = "DELIVERED_SUCCESS"
     delivered_partial = "DELIVERED_PARTIAL"
     billed = "BILLED"

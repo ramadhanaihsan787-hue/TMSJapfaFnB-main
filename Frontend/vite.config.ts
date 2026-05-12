@@ -3,7 +3,6 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
-
 export default defineConfig({
   plugins: [
     react(),
@@ -15,7 +14,12 @@ export default defineConfig({
     },
   },
   server: {
-    allowedHosts: ['.loca.lt']
+    // 🌟 TAMBAHIN LINK NGROK DI SINI BOS!
+    allowedHosts: [
+      '.loca.lt', 
+      '.ngrok-free.dev', // <--- Jimat biar semua link ngrok diizinkan!
+      'unrefined-platypus-tableful.ngrok-free.dev' 
+    ]
   },
 
   test: {

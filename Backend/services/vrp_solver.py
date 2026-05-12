@@ -135,7 +135,6 @@ def solve_single_zone(distance_matrix, time_matrix, demands, vehicle_capacity,
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()
     search_parameters.first_solution_strategy = (routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC)
     search_parameters.local_search_metaheuristic = (routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
-    # 🌟 FIX CTO: Karena ini cuma hitung 1 Zona, waktu mikir AI cukup 10 detik aja per zona!
     search_parameters.time_limit.seconds = 10 
 
     logger.debug(f"OR-Tools: Kalkulasi Single-Zone VRP ({len(demands)-1} toko)...")

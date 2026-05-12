@@ -224,16 +224,12 @@ def get_routes(
         try: query = query.filter(models.TMSRoutePlan.planning_date == datetime.datetime.strptime(date, "%Y-%m-%d").date())
         except: raise HTTPException(status_code=400, detail="Format tanggal salah!")
 
-    # Menggunakan Anchor JAPFA yang baru
     zona_dummy = ["Bekasi/Cikarang", "Kelapa Gading", "Kembangan/Jakbar", "Serpong/BSD", "Pusat/Selatan", "Bogor", "Tigaraksa"]
     settings = get_settings()
 
     hasil = []
     routes = query.all()
 
-    # 🌟 FIX MISTERI 1 (Keranjang Merah Hantu): 
-    # Cek apakah emang hari ini BELUM di-routing sama sekali?
-    # Kalau belum (rutenya 0), JANGAN tampilin pesan Drop AI!
     is_route_empty = len(routes) == 0
 
     for rute in routes:
@@ -243,10 +239,18 @@ def get_routes(
             order = db.query(models.DeliveryOrder).filter(models.DeliveryOrder.order_id == line.order_id).first()
             if order:
                 items = json.loads(order.service_type) if order.service_type and order.service_type.startswith('[') else []
+                # 🌟 FIX NAMA TOKO HILANG: Ambil dari relasi customer kalau ada, kalau ngga pakai customer_name (fallback)
+                nama_toko_asli = order.customer.store_name if hasattr(order, 'customer') and order.customer else (order.customer_name if hasattr(order, 'customer_name') else "Toko")
+                
                 detail_rute.append({
-                    "urutan": line.sequence, "nama_toko": order.customer_name if hasattr(order, 'customer_name') else "Toko", "latitude": float(order.latitude) if order.latitude else 0.0,
-                    "longitude": float(order.longitude) if order.longitude else 0.0, "berat_kg": order.weight_total,
-                    "jam_tiba": str(line.est_arrival), "distance_from_prev_km": line.distance_from_prev_km or 0.0, "items": items
+                    "urutan": line.sequence, 
+                    "nama_toko": nama_toko_asli, 
+                    "latitude": float(order.latitude) if order.latitude else 0.0,
+                    "longitude": float(order.longitude) if order.longitude else 0.0, 
+                    "berat_kg": order.weight_total,
+                    "jam_tiba": str(line.est_arrival), 
+                    "distance_from_prev_km": line.distance_from_prev_km or 0.0, 
+                    "items": items
                 })
 
         garis_aspal = []
@@ -266,14 +270,10 @@ def get_routes(
 
     dropped_nodes_response = []
     
-    # Kalau ternyata hari ini udah di-routing (is_route_empty == False)
-    # Baru kita cari mana aja DO yang nasibnya gantung alias "Dropped"
     if not is_route_empty:
-        # DO yang "Assigned" artinya udah dapet rute (masuk ke tms_route_line)
-        # Jadi sisanya yang masih "Verified" adalah murni korban Spillover AI!
         unassigned = db.query(models.DeliveryOrder).filter(models.DeliveryOrder.status == models.DOStatus.do_verified).all()
         dropped_nodes_response = [{
-            "nama_toko": o.customer_name if hasattr(o, 'customer_name') else "Toko", 
+            "nama_toko": o.customer.store_name if hasattr(o, 'customer') and o.customer else (o.customer_name if hasattr(o, 'customer_name') else "Toko"), 
             "berat_kg": o.weight_total, 
             "alasan": "Drop AI (Overcapacity)", 
             "lat": float(o.latitude) if o.latitude else 0.0, 
@@ -354,7 +354,7 @@ def get_load_plan(route_id: str, db: Session = Depends(get_db), current_user: mo
         berat = float(order.weight_total)
         jml_keranjang = math.ceil(berat / 25.0)
         for i in range(jml_keranjang):
-            packer.add_item(Item(f"{order.customer_name if hasattr(order, 'customer_name') else 'Toko'} | Box {i+1}", 60, 40, 30, berat / jml_keranjang))
+            packer.add_item(Item(f"{order.customer.store_name if hasattr(order, 'customer') and order.customer else (order.customer_name if hasattr(order, 'customer_name') else 'Toko')} | Box {i+1}", 60, 40, 30, berat / jml_keranjang))
 
     packer.pack()
     result = [{"truck": b.name, "truck_dimensions": {"w": truck_w, "h": truck_h, "d": truck_d}, "total_weight_loaded": float(b.get_total_weight()), "3d_layout_data": [{"item_name": item.name, "position_xyz": [float(item.position[0]), float(item.position[1]), float(item.position[2])], "dimensions_whd": [float(item.width), float(item.height), float(item.depth)], "rotation": item.rotation_type} for item in b.items], "unfitted_items": [item.name for item in b.unfitted_items]} for b in packer.bins]
@@ -362,7 +362,7 @@ def get_load_plan(route_id: str, db: Session = Depends(get_db), current_user: mo
     return {"status": "success", "data": result}
 
 # ==========================================
-# 5. ENDPOINT VALIDASI MACET (SPRINT 4)
+# 5. ENDPOINT VALIDASI MACET
 # ==========================================
 TRAFFIC_JOBS = {}
 
@@ -414,24 +414,16 @@ def preview_spatial_zones(
         if not pending_orders:
             raise HTTPException(status_code=400, detail="Tidak ada order terverifikasi.")
 
-        vehicles = db.query(models.FleetVehicle).filter(models.FleetVehicle.status == "Available").all()
-        total_berat = sum(int(o.weight_total) for o in pending_orders)
-        
-        # 🌟 SESUAIKAN SAMA BATAS 2500 BIAR SINKRON SAMA BACKEND PIPELINE
-        ideal_trucks = int((total_berat // 2500) + 1)
-        active_count = min(ideal_trucks, len(vehicles))
-        if active_count < 1: active_count = 1
-
         locations = []
         for order in pending_orders:
             locations.append({
-                "nama_toko": order.customer.store_name if order.customer else "Toko",
+                "nama_toko": order.customer.store_name if hasattr(order, 'customer') and order.customer else (order.customer_name if hasattr(order, 'customer_name') else "Toko"),
                 "lat": float(order.latitude),
                 "lon": float(order.longitude),
                 "berat": float(order.weight_total)
             })
 
-        zoning_data = map_service.generate_spatial_zones(locations, num_zones=active_count)
+        zoning_data = map_service.generate_spatial_zones(locations, num_zones=7)
 
         return {
             "status": "success",

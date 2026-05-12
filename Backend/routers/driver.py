@@ -123,7 +123,7 @@ def get_my_route(
         stops_data.append({
             "id": line.line_id,
             "sequence": line.sequence,
-            "customerName": order.customer_name,
+            "customerName": order.customer.store_name if order.customer else "Tanpa Nama",
             "address": order.customer.address if order.customer else "Alamat tidak tersedia",
             "timeWindow": f"{line.est_arrival.strftime('%H:%M')} WIB" if line.est_arrival else "-",
             "weight": f"{order.weight_total} KG",

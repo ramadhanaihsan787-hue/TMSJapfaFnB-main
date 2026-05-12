@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { toast } from 'sonner'; 
 
+// 🌟 FIX MISI 2: Format Jam "Tiba - Selesai"
 const formatTimeWindow = (timeStr: string | undefined, weight: number) => {
     if (!timeStr || typeof timeStr !== 'string') return "Menghitung...";
     try {
@@ -13,12 +14,17 @@ const formatTimeWindow = (timeStr: string | undefined, weight: number) => {
         const m = parseInt(parts[1], 10);
         if (isNaN(h) || isNaN(m)) return "Menghitung...";
 
+        // Bongkar muat: Base 15 menit + (1 menit tiap 10kg)
         const serviceTime = 15 + ((weight || 0) / 10);
-        const totalMinutes = h * 60 + m + Math.round(serviceTime);
-        const endH = Math.floor(totalMinutes / 60) % 24;
-        const endM = totalMinutes % 60;
+        const totalMinutesArrival = h * 60 + m;
+        const totalMinutesDeparture = totalMinutesArrival + Math.round(serviceTime);
         
-        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} - ${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+        const endH = Math.floor(totalMinutesDeparture / 60) % 24;
+        const endM = totalMinutesDeparture % 60;
+        
+        const formatNum = (num: number) => num.toString().padStart(2, '0');
+        
+        return `${formatNum(h)}:${formatNum(m)} - ${formatNum(endH)}:${formatNum(endM)}`;
     } catch (e) {
         return "-";
     }
@@ -36,7 +42,6 @@ interface RouteDetailPanelProps {
 export default function RouteDetailPanel({ selectedRoute, isFocusMode, onToggleFocus, showMapView, onToggleMapView, mapComponent }: RouteDetailPanelProps) {
     const [expandedStopIdx, setExpandedStopIdx] = useState<number | null>(null);
 
-    // Bikin counter manual biar urutan ngga pernah bolong
     let displayCounter = 1;
 
     return (
@@ -90,14 +95,13 @@ export default function RouteDetailPanel({ selectedRoute, isFocusMode, onToggleF
 
                                 {/* LOOPING DESTINASI */}
                                 {(selectedRoute.details || selectedRoute.detail_rute || selectedRoute.detail_perjalanan || []).map((stop: any, idx: number) => {
-                                    const namaToko = stop.storeName || stop.nama_toko || stop.lokasi;
+                                    const namaToko = stop.storeName || stop.nama_toko || stop.lokasi || "Toko JAPFA";
                                     const beratKg = stop.weightKg || stop.berat_kg || stop.turun_barang_kg || 0;
                                     const jamTiba = stop.arrivalTime || stop.jam_tiba || stop.jam;
                                     const items = stop.items || [];
                                     
                                     if (namaToko === "📍 GUDANG JAPFA" || stop.keterangan === "Start" || stop.keterangan === "Finish") return null;
 
-                                    // Ngambil angka urut biar ngga ada yang bolong
                                     const currentUrutan = displayCounter++;
 
                                     return (
@@ -123,8 +127,8 @@ export default function RouteDetailPanel({ selectedRoute, isFocusMode, onToggleF
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
-                                                    <span className="text-sm font-bold text-primary">{formatTimeWindow(jamTiba, beratKg)}</span>
-                                                    <p className="text-[10px] text-primary font-bold uppercase mt-1">Est. Time Window</p>
+                                                    <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-1 rounded-md">{formatTimeWindow(jamTiba, beratKg)}</span>
+                                                    <p className="text-[10px] text-primary font-bold uppercase mt-2">Bongkar Muat</p>
                                                 </div>
                                             </div>
 
@@ -143,7 +147,7 @@ export default function RouteDetailPanel({ selectedRoute, isFocusMode, onToggleF
                                                             ))}
                                                         </ul>
                                                     ) : (
-                                                        <p className="text-xs italic text-slate-400">Mode preview belum melampirkan rincian muatan per DO.</p>
+                                                        <p className="text-xs italic text-slate-400">Rincian produk tidak dilampirkan atau tidak ditemukan.</p>
                                                     )}
                                                 </div>
                                             )}
