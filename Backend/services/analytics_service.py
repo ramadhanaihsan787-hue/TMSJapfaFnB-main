@@ -152,76 +152,34 @@ def get_realtime_alerts(db: Session):
 def get_kpi_summary(db: Session, start_date_str: str, end_date_str: str, settings):
     start_date, end_date = parse_dates(start_date_str, end_date_str)
 
-    total_do = db.query(models.TMSRouteLine).join(
-        models.TMSRoutePlan, models.TMSRouteLine.route_id == models.TMSRoutePlan.route_id
-    ).filter(
-        models.TMSRoutePlan.planning_date >= start_date,
-        models.TMSRoutePlan.planning_date <= end_date, 
-        models.TMSRouteLine.sequence > 0
-    ).count()
-
-    weight_raw = db.query(func.sum(models.TMSRoutePlan.total_weight)).filter(
-        models.TMSRoutePlan.planning_date >= start_date,
-        models.TMSRoutePlan.planning_date <= end_date
-    ).scalar()
-    total_berat = float(weight_raw) if weight_raw else 0.0
-
-    load_utilization = 0.0
     rute_aktif = db.query(models.TMSRoutePlan).filter(
         models.TMSRoutePlan.planning_date >= start_date,
         models.TMSRoutePlan.planning_date <= end_date
     ).all()
 
+    total_do = 0
+    total_berat = 0.0
     total_capacity_available = 0.0
     total_trucks_used = len(rute_aktif)
 
     for rute in rute_aktif:
         if rute.vehicle and rute.vehicle.capacity_kg:
             total_capacity_available += float(rute.vehicle.capacity_kg)
+        else:
+            total_capacity_available += 2000.0 
+            
+        for line in rute.route_lines:
+            if line.sequence > 0 and line.order:
+                total_do += 1
+                total_berat += float(line.order.weight_total) if line.order.weight_total else 0.0
 
+    load_utilization = 0.0
     if total_capacity_available > 0:
         load_utilization = round((total_berat / total_capacity_available) * 100, 1)
         load_utilization = min(load_utilization, 100.0)
 
     fill_rate, return_rate, damage_rate, otif_rate = 0.0, 0.0, 0.0, 0.0
 
-    if total_do > 0:
-        epods = db.query(models.TMSEpodHistory, models.DeliveryOrder.weight_total).join(
-            models.TMSRouteLine, models.TMSEpodHistory.line_id == models.TMSRouteLine.line_id
-        ).join(
-            models.DeliveryOrder, models.TMSRouteLine.order_id == models.DeliveryOrder.order_id
-        ).join(
-            models.TMSRoutePlan, models.TMSRouteLine.route_id == models.TMSRoutePlan.route_id
-        ).filter(
-            models.TMSRoutePlan.planning_date >= start_date,
-            models.TMSRoutePlan.planning_date <= end_date
-        ).all()
-
-        sum_qty_ordered, sum_qty_delivered = 0.0, 0.0
-        sum_qty_return, sum_qty_damaged = 0.0, 0.0
-        otif_count = 0
-
-        for epod, ordered_weight in epods:
-            qty_ord = float(ordered_weight) if ordered_weight else 0.0
-            qty_del = float(epod.qty_delivered) if epod.qty_delivered else 0.0
-            
-            sum_qty_ordered += qty_ord
-            sum_qty_delivered += qty_del
-            sum_qty_return += float(epod.qty_return) if epod.qty_return else 0.0
-            sum_qty_damaged += float(epod.qty_damaged) if epod.qty_damaged else 0.0
-
-            if epod.status == models.DOStatus.delivered_success and qty_del >= qty_ord:
-                otif_count += 1
-
-        if sum_qty_ordered > 0:
-            fill_rate = round((sum_qty_delivered / sum_qty_ordered) * 100, 1)
-        if sum_qty_delivered > 0:
-            return_rate = round((sum_qty_return / sum_qty_delivered) * 100, 1)
-            damage_rate = round((sum_qty_damaged / sum_qty_delivered) * 100, 1)
-        
-        otif_rate = round((otif_count / total_do) * 100, 1)
-
-    # 🌟 FIX CTO: Narik Total Cost Asli dari Data Finance!
     expenses = db.query(models.OperationalExpense).filter(
         models.OperationalExpense.date >= start_date,
         models.OperationalExpense.date <= end_date
@@ -241,7 +199,7 @@ def get_kpi_summary(db: Session, start_date_str: str, end_date_str: str, setting
     completed_drops, in_transit_drops = 0, 0
 
     for line in today_orders:
-        weight = float(line.route_plan.total_weight / len(line.route_plan.route_lines)) if line.route_plan.total_weight else 0
+        weight = float(line.order.weight_total) if line.order and line.order.weight_total else 0.0
         today_target_kg += weight
         
         epod = db.query(models.TMSEpodHistory).filter(models.TMSEpodHistory.line_id == line.line_id).first()
@@ -280,10 +238,116 @@ def get_kpi_summary(db: Session, start_date_str: str, end_date_str: str, setting
     }
 
 # =====================================================================
-# REJECTION ANALYSIS (BEBAS DUMMY)
+# EFFICIENCY DASHBOARD (PURE REAL DATA)
+# =====================================================================
+def get_efficiency_dashboard(db: Session, settings):
+    now = datetime.now()
+    start_of_month = now.replace(day=1).date()
+    
+    total_shipments = db.query(models.DeliveryOrder).count()
+
+    rutes = db.query(models.TMSRoutePlan).filter(
+        models.TMSRoutePlan.planning_date >= start_of_month
+    ).all()
+    
+    total_capacity = 0.0
+    total_weight = 0.0
+
+    for r in rutes:
+        if r.vehicle and r.vehicle.capacity_kg:
+            total_capacity += float(r.vehicle.capacity_kg)
+        else:
+            total_capacity += 2000.0
+            
+        r_weight = sum([float(line.order.weight_total) for line in r.route_lines if line.order and line.order.weight_total and line.sequence > 0])
+        total_weight += r_weight
+
+    lf_percent = round((total_weight / total_capacity) * 100, 1) if total_capacity > 0 else 0.0
+    
+    expenses = db.query(models.OperationalExpense).filter(
+        models.OperationalExpense.date >= start_of_month
+    ).all()
+
+    tot_bbm, tot_tol, tot_parkir, tot_parkir_liar, tot_kuli, tot_lain, tot_driver = 0, 0, 0, 0, 0, 0, 0
+
+    if expenses:
+        tot_bbm = sum([float(e.bbm) for e in expenses])
+        tot_tol = sum([float(e.tol) for e in expenses])
+        tot_parkir = sum([float(e.parkir) for e in expenses])
+        tot_parkir_liar = sum([float(e.parkir_liar) for e in expenses])
+        tot_kuli = sum([float(e.kuli_angkut) for e in expenses])
+        tot_lain = sum([float(e.lain_lain) for e in expenses])
+        tot_driver = len(expenses) * (settings.cost_driver_salary / 22) 
+
+    total_cost = tot_bbm + tot_tol + tot_parkir + tot_parkir_liar + tot_kuli + tot_lain + tot_driver
+    cost_per_kg = f"{round(total_cost / total_weight, 0):,}".replace(",", ".") if total_weight > 0 and total_cost > 0 else "0"
+
+    cost_dist = []
+    if total_cost > 0:
+        cost_dist = [
+            { "label": "BBM", "percent": round((tot_bbm/total_cost)*100), "color": "bg-japfa-orange", "stroke": "#F28C38" },
+            { "label": "Driver", "percent": round((tot_driver/total_cost)*100), "color": "bg-orange-300", "stroke": "#ffcc80" },
+            { "label": "Tol & Parkir", "percent": round(((tot_tol+tot_parkir)/total_cost)*100), "color": "bg-amber-700", "stroke": "#8d6e63" },
+            { "label": "Lain-Lain (Kuli/Liar)", "percent": round(((tot_kuli+tot_parkir_liar+tot_lain)/total_cost)*100), "color": "bg-[#1d2d50]", "stroke": "#1d2d50" }
+        ]
+
+    tot_hidden = tot_parkir_liar + tot_kuli + tot_lain
+    hidden_costs = []
+    if tot_hidden > 0:
+        hidden_costs = [
+            { "label": "Parkir Liar", "value": f"{round((tot_parkir_liar/tot_hidden)*100)}%", "color": "bg-japfa-orange" },
+            { "label": "Kuli Angkut", "value": f"{round((tot_kuli/tot_hidden)*100)}%", "color": "bg-orange-300" },
+            { "label": "Lain-Lain", "value": f"{round((tot_lain/tot_hidden)*100)}%", "color": "bg-slate-700" }
+        ]
+
+    op_excellence = []
+    for rute in rutes[:5]: 
+        w = sum([float(line.order.weight_total) for line in rute.route_lines if line.order and line.order.weight_total and line.sequence > 0])
+        c = float(rute.vehicle.capacity_kg) if rute.vehicle and rute.vehicle.capacity_kg else 2000.0
+        lf_rute = round((w/c)*100) if c > 0 else 0
+        
+        start_time = db.query(func.min(models.TMSRouteLine.est_arrival)).filter(models.TMSRouteLine.route_id == rute.route_id).scalar()
+        
+        op_excellence.append({
+            "route": f"Route #{rute.route_id}", 
+            "region": rute.vehicle.license_plate if rute.vehicle else "Umum", 
+            "otif": "-", 
+            "lead": f"{start_time.strftime('%H:%M')} WIB" if start_time else "-", 
+            "factor": f"{lf_rute}%",
+            "status": "Optimal" if lf_rute > 80 else "Underloaded",
+            "color": "bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400" if lf_rute > 80 else "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400"
+        })
+
+    lf_trend = []
+    for i in range(6, -1, -1):
+        target_date = now.date() - timedelta(days=i)
+        rutes_day = db.query(models.TMSRoutePlan).filter(models.TMSRoutePlan.planning_date == target_date).all()
+        
+        w_day = 0.0
+        c_day = 0.0
+        for r in rutes_day:
+            w_day += sum([float(line.order.weight_total) for line in r.route_lines if line.order and line.order.weight_total and line.sequence > 0])
+            c_day += float(r.vehicle.capacity_kg) if r.vehicle and r.vehicle.capacity_kg else 2000.0
+            
+        lf_day = round((w_day / c_day) * 100) if c_day > 0 else 0
+        lf_trend.append(lf_day)
+
+    return {
+        "kpi": {
+            "totalShipments": total_shipments, "avgLeadTime": "N/A", "loadFactor": f"{lf_percent}%",
+            "costPerKg": f"Rp {cost_per_kg}", "hiddenCost": f"{round((tot_hidden/total_cost)*100, 1) if total_cost > 0 else 0}%"
+        },
+        "lfTrend": lf_trend,
+        "costDist": cost_dist,
+        "hiddenCosts": hidden_costs,
+        "opExcellence": op_excellence,
+        "leakagePoints": []
+    }
+
+# =====================================================================
+# REJECTION ANALYSIS
 # =====================================================================
 def get_rejection_analysis(db: Session, start_date_str: str = None, end_date_str: str = None):
-    # 🌟 FIX CTO: Bantai Angka Dummy, Tarik data asli dari return_reason di EpodHistory
     query = db.query(
         models.TMSEpodHistory.return_reason,
         func.count(models.TMSEpodHistory.pod_id).label('count')
@@ -305,7 +369,6 @@ def get_rejection_analysis(db: Session, start_date_str: str = None, end_date_str
     if total_rejections == 0:
         return {"status": "success", "data": [{"reason": "Belum Ada Data Retur", "percentage": 0, "color": "bg-slate-200"}]}
 
-    # Mapping warna biar cantik
     color_map = {
         "Barang Rusak": "bg-red-500",
         "Packaging Bocor": "bg-red-400",
@@ -316,7 +379,6 @@ def get_rejection_analysis(db: Session, start_date_str: str = None, end_date_str
 
     data = []
     for reason, count in rejections:
-        # Standarisasi alasan (kalau supir ngetik aneh-aneh)
         clean_reason = reason if reason in color_map else "Lainnya"
         color = color_map.get(clean_reason, "bg-gray-400")
         
@@ -326,13 +388,8 @@ def get_rejection_analysis(db: Session, start_date_str: str = None, end_date_str
             "color": color
         })
 
-    # Sort dari yang paling banyak
     data = sorted(data, key=lambda x: x['percentage'], reverse=True)
-
-    return {
-        "status": "success",
-        "data": data
-    }
+    return {"status": "success", "data": data}
 
 def get_returns_dashboard(db: Session):
     returns = db.query(models.TMSEpodHistory, models.TMSRoutePlan, models.DeliveryOrder, models.FleetVehicle).join(
@@ -374,7 +431,6 @@ def get_returns_dashboard(db: Session):
             "product": epod.driver_notes.replace("Produk Retur: ", "") if epod.driver_notes else "N/A",
             "weight": f"{r_qty} KG",
             "reason": reason,
-            # 🌟 FIX CTO: Tarik data status DO aslinya
             "status": "Selesai (Parsial)" if order.status == models.DOStatus.delivered_partial else "Investigating",
             "color": status_color
         })
@@ -384,7 +440,6 @@ def get_returns_dashboard(db: Session):
     sp = round((sku_kg / total_return_kg) * 100, 1) if total_return_kg > 0 else 0
     cp = round((cust_kg / total_return_kg) * 100, 1) if total_return_kg > 0 else 0
 
-    # 🌟 FIX CTO: Hilangin trend "up" palsu. Kita cuma nampilin berat riil.
     fleet_performance = [{"plate": k, "count": v["count"], "weight": round(v["weight"], 1), "trend": "flat", "percent": "Data Aktual"} for k, v in fleet_map.items()]
     fleet_performance = sorted(fleet_performance, key=lambda x: x['weight'], reverse=True)
 
@@ -400,125 +455,17 @@ def get_returns_dashboard(db: Session):
         "audit_logs": audit_logs
     }
 
-# =====================================================================
-# EFFICIENCY DASHBOARD (BEBAS DUMMY)
-# =====================================================================
-def get_efficiency_dashboard(db: Session, settings):
-    # 🌟 FIX CTO: Bantai semua angka Dummy Cost & Leakage!
-    now = datetime.now()
-    start_of_month = now.replace(day=1).date()
-    
-    total_shipments = db.query(models.DeliveryOrder).count()
-
-    rutes = db.query(models.TMSRoutePlan).filter(
-        models.TMSRoutePlan.planning_date >= start_of_month
-    ).all()
-    
-    total_weight = sum([(float(r.total_weight) if r.total_weight else 0.0) for r in rutes])
-    total_capacity = 0.0
-
-    for r in rutes:
-        if r.vehicle and r.vehicle.capacity_kg:
-            total_capacity += float(r.vehicle.capacity_kg)
-
-    lf_percent = round((total_weight / total_capacity) * 100, 1) if total_capacity > 0 else 0.0
-    
-    # 1. TARIK DATA BIAYA AKTUAL DARI TABEL OPERATIONAL EXPENSE (FINANCE)
-    expenses = db.query(models.OperationalExpense).filter(
-        models.OperationalExpense.date >= start_of_month
-    ).all()
-
-    tot_bbm = sum([float(e.bbm) for e in expenses])
-    tot_tol = sum([float(e.tol) for e in expenses])
-    tot_parkir = sum([float(e.parkir) for e in expenses])
-    tot_parkir_liar = sum([float(e.parkir_liar) for e in expenses])
-    tot_kuli = sum([float(e.kuli_angkut) for e in expenses])
-    tot_lain = sum([float(e.lain_lain) for e in expenses])
-    
-    # Hitung Gaji Supir Aktual (Asumsi 1 Expense = 1 Perjalanan Supir = Rp 150.000 / Hari)
-    tot_driver = len(expenses) * (settings.cost_driver_salary / 22) 
-    
-    total_cost = tot_bbm + tot_tol + tot_parkir + tot_parkir_liar + tot_kuli + tot_lain + tot_driver
-    cost_per_kg = f"{round(total_cost / total_weight, 0):,}".replace(",", ".") if total_weight > 0 else "0"
-
-    # 2. HITUNG DISTRIBUSI COST (PERSENTASE AKTUAL)
-    cost_dist = []
-    if total_cost > 0:
-        cost_dist = [
-            { "label": "BBM", "percent": round((tot_bbm/total_cost)*100), "color": "bg-japfa-orange", "stroke": "#F28C38" },
-            { "label": "Driver", "percent": round((tot_driver/total_cost)*100), "color": "bg-orange-300", "stroke": "#ffcc80" },
-            { "label": "Tol & Parkir", "percent": round(((tot_tol+tot_parkir)/total_cost)*100), "color": "bg-amber-700", "stroke": "#8d6e63" },
-            { "label": "Lain-Lain (Kuli/Liar)", "percent": round(((tot_kuli+tot_parkir_liar+tot_lain)/total_cost)*100), "color": "bg-[#1d2d50]", "stroke": "#1d2d50" }
-        ]
-
-    # 3. HITUNG HIDDEN COST (PERSENTASE AKTUAL)
-    tot_hidden = tot_parkir_liar + tot_kuli + tot_lain
-    hidden_costs = []
-    if tot_hidden > 0:
-        hidden_costs = [
-            { "label": "Parkir Liar", "value": f"{round((tot_parkir_liar/tot_hidden)*100)}%", "color": "bg-japfa-orange" },
-            { "label": "Kuli Angkut", "value": f"{round((tot_kuli/tot_hidden)*100)}%", "color": "bg-orange-300" },
-            { "label": "Lain-Lain", "value": f"{round((tot_lain/tot_hidden)*100)}%", "color": "bg-slate-700" }
-        ]
-
-    # 4. OP EXCELLENCE (DATA AKTUAL)
-    op_excellence = []
-    for rute in rutes[:5]: # Tampilkan 5 rute terakhir
-        w = float(rute.total_weight) if rute.total_weight else 0
-        c = float(rute.vehicle.capacity_kg) if rute.vehicle and rute.vehicle.capacity_kg else 1
-        lf_rute = round((w/c)*100)
-        
-        # Tarik jam keberangkatan & kepulangan aktual
-        start_time = db.query(func.min(models.TMSRouteLine.est_arrival)).filter(models.TMSRouteLine.route_id == rute.route_id).scalar()
-        
-        op_excellence.append({
-            "route": f"Route #{rute.route_id}", 
-            "region": rute.vehicle.license_plate if rute.vehicle else "Umum", 
-            "otif": "-", # Butuh data lebih lengkap untuk ngitung per rute
-            "lead": f"{start_time.strftime('%H:%M')} WIB" if start_time else "-", 
-            "factor": f"{lf_rute}%",
-            "status": "Optimal" if lf_rute > 80 else "Underloaded",
-            "color": "bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400" if lf_rute > 80 else "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400"
-        })
-
-    # 5. LF TREND (7 HARI KEBELAKANG)
-    lf_trend = []
-    for i in range(6, -1, -1):
-        target_date = now.date() - timedelta(days=i)
-        rutes_day = db.query(models.TMSRoutePlan).filter(models.TMSRoutePlan.planning_date == target_date).all()
-        w_day = sum([(float(r.total_weight) if r.total_weight else 0.0) for r in rutes_day])
-        c_day = sum([(float(r.vehicle.capacity_kg) if r.vehicle and r.vehicle.capacity_kg else 0.0) for r in rutes_day])
-        lf_day = round((w_day / c_day) * 100) if c_day > 0 else 0
-        lf_trend.append(lf_day)
-
-    return {
-        "kpi": {
-            "totalShipments": total_shipments, "avgLeadTime": "N/A", "loadFactor": f"{lf_percent}%",
-            "costPerKg": f"Rp {cost_per_kg}", "hiddenCost": f"{round((tot_hidden/total_cost)*100, 1) if total_cost > 0 else 0}%"
-        },
-        "lfTrend": lf_trend,
-        "costDist": cost_dist,
-        "hiddenCosts": hidden_costs,
-        "opExcellence": op_excellence,
-        "leakagePoints": [] # Kosongkan jika belum ada data geografis buat leakage
-    }
-
-# =====================================================================
-# SISA FUNGSI LAMA LU (JANGAN DIHAPUS)
-# =====================================================================
 def get_manager_overview(db: Session):
     today = datetime.now().date()
     total_do = db.query(models.DeliveryOrder).count()
     active_fleet = db.query(models.TMSRoutePlan).filter(models.TMSRoutePlan.planning_date == today).count()
     
-    # 🌟 FIX CTO: Biaya Estimasi pake data aktual kalau ada
     expenses_today = db.query(models.OperationalExpense).filter(models.OperationalExpense.date == today).all()
     actual_cost = sum([float(e.total) for e in expenses_today])
     
     cost = db.query(func.sum(models.TMSRoutePlan.total_distance_km)).scalar() or 0
     est_cost = actual_cost if actual_cost > 0 else ((cost / 5.0) * 12500)
 
-    # 🌟 FIX CTO: Tarik jumlah truk delay beneran
     now = datetime.now()
     active_routes = db.query(models.TMSRouteLine).join(models.TMSRoutePlan).filter(
         models.TMSRoutePlan.planning_date == today,
@@ -600,4 +547,3 @@ def get_fleet_utilization(db: Session, start_date_str: str, end_date_str: str):
         "total_trucks": total_truck,
         "utilization_rate": utilization
     }
-
