@@ -1,8 +1,8 @@
-# TMS Japfa - Transportasi Management System
+# TMS TIN - Transportasi Management System
 
 ## 🎯 Konsep & Visi Proyek
 
-**TMS Japfa** adalah Sistem Manajemen Transportasi (Transportation Management System) yang menintegrasikan operasi logistik end-to-end untuk perusahaan distribusi F&B (Food & Beverage). Sistem ini menghubungkan:
+**TMS TIN** adalah Sistem Manajemen Transportasi (Transportation Management System) yang menintegrasikan operasi logistik end-to-end untuk perusahaan distribusi F&B (Food & Beverage). Sistem ini menghubungkan:
 
 - **Pusat Distribusi** - Perencanaan & pengoptimalan rute
 - **Armada Kendaraan** - Tracking & manajemen fleet
